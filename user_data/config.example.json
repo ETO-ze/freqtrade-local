@@ -1,0 +1,81 @@
+{
+  "$schema": "https://schema.freqtrade.io/schema.json",
+  "bot_name": "freqtrade-local",
+  "strategy": "QuickstartStrategy",
+  "timeframe": "15m",
+  "max_open_trades": 3,
+  "stake_currency": "USDT",
+  "stake_amount": 50,
+  "tradable_balance_ratio": 0.99,
+  "fiat_display_currency": "USD",
+  "dry_run": true,
+  "dry_run_wallet": 1000,
+  "initial_state": "running",
+  "cancel_open_orders_on_exit": true,
+  "trading_mode": "spot",
+  "exchange": {
+    "name": "okx",
+    "key": "YOUR_OKX_API_KEY",
+    "secret": "YOUR_OKX_SECRET",
+    "password": "YOUR_OKX_PASSPHRASE",
+    "ccxt_config": {},
+    "ccxt_async_config": {},
+    "pair_whitelist": [
+      "BTC/USDT",
+      "ETH/USDT",
+      "SOL/USDT"
+    ],
+    "pair_blacklist": []
+  },
+  "pairlists": [
+    {
+      "method": "StaticPairList"
+    }
+  ],
+  "order_types": {
+    "entry": "limit",
+    "exit": "limit",
+    "emergency_exit": "market",
+    "force_entry": "market",
+    "force_exit": "market",
+    "stoploss": "market",
+    "stoploss_on_exchange": false,
+    "stoploss_on_exchange_interval": 60
+  },
+  "entry_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1,
+    "price_last_balance": 0.0,
+    "check_depth_of_market": {
+      "enabled": false,
+      "bids_to_ask_delta": 1
+    }
+  },
+  "exit_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1,
+    "price_last_balance": 0.0
+  },
+  "unfilledtimeout": {
+    "entry": 10,
+    "exit": 10,
+    "unit": "minutes"
+  },
+  "api_server": {
+    "enabled": true,
+    "listen_ip_address": "0.0.0.0",
+    "listen_port": 8080,
+    "verbosity": "info",
+    "enable_openapi": true,
+    "jwt_secret_key": "CHANGE_ME",
+    "ws_token": "CHANGE_ME",
+    "CORS_origins": [],
+    "username": "ftadmin",
+    "password": "CHANGE_ME"
+  },
+  "internals": {
+    "process_throttle_secs": 5
+  }
+}

@@ -1,0 +1,360 @@
+import argparse
+import json
+import re
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, classification_report
+from sklearn.tree import DecisionTreeClassifier
+
+try:
+    from lightgbm import LGBMClassifier
+except ImportError:
+    LGBMClassifier = None
+
+
+def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
+    delta = close.diff()
+    gain = delta.clip(lower=0).rolling(period).mean()
+    loss = (-delta.clip(upper=0)).rolling(period).mean()
+    rs = gain / loss.replace(0, np.nan)
+    return 100 - (100 / (1 + rs))
+
+
+def build_features(frame: pd.DataFrame, pair: str, horizon: int, threshold: float) -> pd.DataFrame:
+    df = frame.copy()
+    df["pair"] = pair
+    df["ret_1"] = df["close"].pct_change(1)
+    df["ret_3"] = df["close"].pct_change(3)
+    df["ret_6"] = df["close"].pct_change(6)
+    df["ret_12"] = df["close"].pct_change(12)
+    df["range_pct"] = (df["high"] - df["low"]) / df["open"].replace(0, np.nan)
+    df["body_pct"] = (df["close"] - df["open"]).abs() / df["open"].replace(0, np.nan)
+    df["direction"] = (df["close"] - df["open"]) / df["open"].replace(0, np.nan)
+    df["volume_ratio_6"] = df["volume"] / df["volume"].rolling(6).mean()
+    df["volume_ratio_24"] = df["volume"] / df["volume"].rolling(24).mean()
+    df["volatility_12"] = df["close"].pct_change().rolling(12).std()
+    df["volatility_24"] = df["close"].pct_change().rolling(24).std()
+    df["ema_8"] = df["close"].ewm(span=8, adjust=False).mean()
+    df["ema_21"] = df["close"].ewm(span=21, adjust=False).mean()
+    df["ema_gap"] = (df["ema_8"] - df["ema_21"]) / df["close"].replace(0, np.nan)
+    df["rsi_14"] = compute_rsi(df["close"], 14) / 100.0
+    df["forward_return"] = df["close"].shift(-horizon) / df["close"] - 1
+    df["target"] = 0
+    df.loc[df["forward_return"] > threshold, "target"] = 1
+    df.loc[df["forward_return"] < -threshold, "target"] = -1
+    return df.dropna()
+
+
+def load_dataset(data_dir: Path, pairs, timeframe: str, horizon: int, threshold: float) -> pd.DataFrame:
+    frames = []
+    for pair in pairs:
+        stem = pair.replace("/", "_").replace(":", "_")
+        path = data_dir / f"{stem}-{timeframe}-futures.feather"
+        if not path.exists():
+            continue
+        frame = pd.read_feather(path)
+        frames.append(build_features(frame, pair, horizon, threshold))
+    if not frames:
+        raise FileNotFoundError("No matching data files were found for the requested pairs.")
+    dataset = pd.concat(frames, ignore_index=True)
+    dataset["pair_name"] = dataset["pair"]
+    dataset = pd.get_dummies(dataset, columns=["pair"], prefix="pair")
+    return dataset.sort_values("date").reset_index(drop=True)
+
+
+def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_returns):
+    model.fit(x_train, y_train)
+    predictions = model.predict(x_test)
+
+    mask_long = predictions == 1
+    mask_short = predictions == -1
+
+    report = classification_report(
+        y_test,
+        predictions,
+        labels=[-1, 0, 1],
+        output_dict=True,
+        zero_division=0,
+    )
+
+    feature_names = x_train.columns.tolist()
+    importances = getattr(model, "feature_importances_", np.zeros(len(feature_names)))
+    top_features = sorted(
+        zip(feature_names, importances),
+        key=lambda item: item[1],
+        reverse=True,
+    )[:10]
+
+    return {
+        "model": name,
+        "accuracy": round(float(accuracy_score(y_test, predictions)), 4),
+        "balanced_accuracy": round(float(balanced_accuracy_score(y_test, predictions)), 4),
+        "predicted_long_count": int(mask_long.sum()),
+        "predicted_short_count": int(mask_short.sum()),
+        "predicted_long_avg_forward_return": round(float(forward_returns[mask_long].mean()) if mask_long.any() else 0.0, 4),
+        "predicted_short_avg_forward_return": round(float((-forward_returns[mask_short]).mean()) if mask_short.any() else 0.0, 4),
+        "long_precision": round(float(report["1"]["precision"]), 4),
+        "short_precision": round(float(report["-1"]["precision"]), 4),
+        "top_features": [{"feature": feature, "importance": round(float(score), 4)} for feature, score in top_features],
+        "predictions": predictions.tolist(),
+    }
+
+
+def sanitize_feature_names(frame: pd.DataFrame) -> pd.DataFrame:
+    renamed = {}
+    used = set()
+    for column in frame.columns:
+        clean = re.sub(r"[^0-9A-Za-z_]+", "_", column).strip("_")
+        if not clean:
+            clean = "feature"
+        base = clean
+        suffix = 2
+        while clean in used:
+            clean = f"{base}_{suffix}"
+            suffix += 1
+        used.add(clean)
+        renamed[column] = clean
+    return frame.rename(columns=renamed)
+
+
+def build_pair_breakdown(pair_series: pd.Series, predictions: np.ndarray, forward_returns: pd.Series) -> list:
+    rows = []
+    for pair in sorted(pair_series.unique()):
+        mask = pair_series == pair
+        pair_predictions = predictions[mask]
+        pair_returns = forward_returns[mask]
+        long_mask = pair_predictions == 1
+        short_mask = pair_predictions == -1
+        long_edge = float(pair_returns[long_mask].mean()) if long_mask.any() else 0.0
+        short_edge = float((-pair_returns[short_mask]).mean()) if short_mask.any() else 0.0
+        score = (max(long_edge, short_edge) * 1000.0) + (long_mask.sum() + short_mask.sum()) / 100.0
+        rows.append(
+            {
+                "pair": pair,
+                "signal_count": int(long_mask.sum() + short_mask.sum()),
+                "long_signal_count": int(long_mask.sum()),
+                "short_signal_count": int(short_mask.sum()),
+                "long_avg_forward_return": round(long_edge, 4),
+                "short_avg_forward_return": round(short_edge, 4),
+                "score": round(score, 4),
+            }
+        )
+    return rows
+
+
+def write_markdown(path: Path, results, metadata):
+    lines = [
+        "# Alt Tree Model Report",
+        "",
+        f"- Generated from: `{metadata['data_dir']}`",
+        f"- Timeframe: `{metadata['timeframe']}`",
+        f"- Horizon: `{metadata['horizon']}` candles",
+        f"- Threshold: `{metadata['threshold']:.4f}`",
+        f"- Pairs: {', '.join(metadata['pairs'])}",
+        f"- Samples: `{metadata['samples']}`",
+        "",
+    ]
+
+    for result in results:
+        lines.extend(
+            [
+                f"## {result['model']}",
+                "",
+                f"- Accuracy: `{result['accuracy']}`",
+                f"- Balanced accuracy: `{result['balanced_accuracy']}`",
+                f"- Predicted long count: `{result['predicted_long_count']}`",
+                f"- Predicted short count: `{result['predicted_short_count']}`",
+                f"- Predicted long avg forward return: `{result['predicted_long_avg_forward_return']}`",
+                f"- Predicted short avg forward return: `{result['predicted_short_avg_forward_return']}`",
+                f"- Long precision: `{result['long_precision']}`",
+                f"- Short precision: `{result['short_precision']}`",
+                "",
+                "| Feature | Importance |",
+                "| --- | ---: |",
+            ]
+        )
+        for item in result["top_features"]:
+            lines.append(f"| {item['feature']} | {item['importance']} |")
+        lines.append("")
+        if result.get("pair_breakdown"):
+            lines.extend(
+                [
+                    "### Pair Breakdown",
+                    "",
+                    "| Pair | Signals | Long Signals | Short Signals | Long Edge | Short Edge | Score |",
+                    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+                ]
+            )
+            for item in result["pair_breakdown"]:
+                lines.append(
+                    f"| {item['pair']} | {item['signal_count']} | {item['long_signal_count']} | "
+                    f"{item['short_signal_count']} | {item['long_avg_forward_return']} | "
+                    f"{item['short_avg_forward_return']} | {item['score']} |"
+                )
+            lines.append("")
+
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train tree-based models on local OKX futures data.")
+    parser.add_argument("--data-dir", default="/freqtrade/user_data/data/okx/futures")
+    parser.add_argument("--pairs", required=True, help="Comma-separated list of pairs.")
+    parser.add_argument("--timeframe", default="5m")
+    parser.add_argument("--horizon", type=int, default=12)
+    parser.add_argument("--threshold", type=float, default=0.01)
+    parser.add_argument(
+        "--output-prefix",
+        default="/freqtrade/user_data/reports/ml/alt-tree-model-latest",
+    )
+    parser.add_argument(
+        "--models",
+        default="tree,rf,lgbm",
+        help="Comma-separated models to train: tree, rf, lgbm, hgb.",
+    )
+    args = parser.parse_args()
+
+    data_dir = Path(args.data_dir)
+    output_prefix = Path(args.output_prefix)
+    output_prefix.parent.mkdir(parents=True, exist_ok=True)
+    pairs = [pair.strip() for pair in args.pairs.split(",") if pair.strip()]
+
+    dataset = load_dataset(data_dir, pairs, args.timeframe, args.horizon, args.threshold)
+
+    feature_columns = [
+        column
+        for column in dataset.columns
+        if column
+        not in {"date", "open", "high", "low", "close", "volume", "forward_return", "target", "pair_name"}
+    ]
+    split_index = int(len(dataset) * 0.8)
+    train = dataset.iloc[:split_index]
+    test = dataset.iloc[split_index:]
+
+    x_train = train[feature_columns]
+    y_train = train["target"]
+    x_test = test[feature_columns]
+    y_test = test["target"]
+    test_pairs = test["pair_name"]
+
+    x_train = sanitize_feature_names(x_train)
+    x_test = x_test.rename(columns=dict(zip(feature_columns, x_train.columns.tolist())))
+
+    requested_models = [item.strip().lower() for item in args.models.split(",") if item.strip()]
+    models = []
+
+    if "tree" in requested_models:
+        models.append(
+            (
+                "DecisionTreeClassifier",
+                DecisionTreeClassifier(
+                    max_depth=6,
+                    min_samples_leaf=80,
+                    class_weight="balanced",
+                    random_state=42,
+                ),
+            )
+        )
+
+    if "rf" in requested_models:
+        models.append(
+            (
+                "RandomForestClassifier",
+                RandomForestClassifier(
+                    n_estimators=300,
+                    max_depth=8,
+                    min_samples_leaf=40,
+                    class_weight="balanced_subsample",
+                    n_jobs=-1,
+                    random_state=42,
+                ),
+            )
+        )
+
+    if "lgbm" in requested_models:
+        if LGBMClassifier is not None:
+            models.append(
+                (
+                    "LGBMClassifier",
+                    LGBMClassifier(
+                        objective="multiclass",
+                        num_class=3,
+                        n_estimators=350,
+                        learning_rate=0.05,
+                        num_leaves=63,
+                        subsample=0.85,
+                        colsample_bytree=0.85,
+                        reg_alpha=0.1,
+                        reg_lambda=0.2,
+                        random_state=42,
+                        class_weight="balanced",
+                        verbosity=-1,
+                    ),
+                )
+            )
+        else:
+            print("Skipping LGBMClassifier because lightgbm is not installed.")
+
+    if "hgb" in requested_models:
+        models.append(
+            (
+                "HistGradientBoostingClassifier",
+                HistGradientBoostingClassifier(
+                    learning_rate=0.05,
+                    max_depth=8,
+                    max_iter=250,
+                    min_samples_leaf=80,
+                    random_state=42,
+                ),
+            )
+        )
+
+    if not models:
+        raise ValueError("No valid models were requested.")
+
+    results = []
+    for name, model in models:
+        result = evaluate_model(
+            name,
+            model,
+            x_train,
+            y_train,
+            x_test,
+            y_test,
+            test["forward_return"],
+        )
+        result["pair_breakdown"] = build_pair_breakdown(
+            test_pairs,
+            np.array(result.pop("predictions")),
+            test["forward_return"],
+        )
+        results.append(result)
+
+    metadata = {
+        "data_dir": str(data_dir),
+        "pairs": pairs,
+        "timeframe": args.timeframe,
+        "horizon": args.horizon,
+        "threshold": args.threshold,
+        "samples": int(len(dataset)),
+        "models": requested_models,
+    }
+
+    json_path = output_prefix.with_suffix(".json")
+    md_path = output_prefix.with_suffix(".md")
+    json_path.write_text(
+        json.dumps({"metadata": metadata, "results": results}, indent=2),
+        encoding="utf-8",
+    )
+    write_markdown(md_path, results, metadata)
+
+    print(f"Wrote {json_path}")
+    print(f"Wrote {md_path}")
+
+
+if __name__ == "__main__":
+    main()

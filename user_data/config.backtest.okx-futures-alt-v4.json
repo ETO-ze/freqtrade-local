@@ -1,0 +1,93 @@
+{
+  "$schema": "https://schema.freqtrade.io/schema.json",
+  "bot_name": "freqtrade-backtest-okx-futures-alt-v4",
+  "max_open_trades": 3,
+  "stake_currency": "USDT",
+  "stake_amount": 50,
+  "tradable_balance_ratio": 0.99,
+  "fiat_display_currency": "USD",
+  "dry_run": true,
+  "cancel_open_orders_on_exit": true,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "liquidation_buffer": 0.05,
+  "exchange": {
+    "name": "okx",
+    "key": "",
+    "secret": "",
+    "password": "",
+    "ccxt_config": {},
+    "ccxt_async_config": {},
+    "pair_whitelist": [
+      "PEPE/USDT:USDT",
+      "SHIB/USDT:USDT",
+      "BONK/USDT:USDT",
+      "FLOKI/USDT:USDT",
+      "ANIME/USDT:USDT",
+      "NEIRO/USDT:USDT",
+      "PUMP/USDT:USDT",
+      "TURBO/USDT:USDT",
+      "PENGU/USDT:USDT",
+      "ROBO/USDT:USDT",
+      "BOME/USDT:USDT",
+      "PIPPIN/USDT:USDT",
+      "GALA/USDT:USDT",
+      "ZIL/USDT:USDT",
+      "HMSTR/USDT:USDT",
+      "TRIA/USDT:USDT",
+      "MEME/USDT:USDT",
+      "SPACE/USDT:USDT",
+      "MEW/USDT:USDT",
+      "NOT/USDT:USDT",
+      "F/USDT:USDT",
+      "RVN/USDT:USDT",
+      "LINEA/USDT:USDT",
+      "HUMA/USDT:USDT",
+      "ONE/USDT:USDT",
+      "SAHARA/USDT:USDT",
+      "DOOD/USDT:USDT",
+      "W/USDT:USDT",
+      "PEOPLE/USDT:USDT"
+    ],
+    "pair_blacklist": []
+  },
+  "pairlists": [
+    {
+      "method": "StaticPairList"
+    }
+  ],
+  "order_types": {
+    "entry": "limit",
+    "exit": "limit",
+    "emergency_exit": "market",
+    "force_entry": "market",
+    "force_exit": "market",
+    "stoploss": "market",
+    "stoploss_on_exchange": false,
+    "stoploss_on_exchange_interval": 60
+  },
+  "entry_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1,
+    "price_last_balance": 0.0,
+    "check_depth_of_market": {
+      "enabled": false,
+      "bids_to_ask_delta": 1
+    }
+  },
+  "exit_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1,
+    "price_last_balance": 0.0
+  },
+  "unfilledtimeout": {
+    "entry": 10,
+    "exit": 10,
+    "unit": "minutes"
+  },
+  "internals": {
+    "process_throttle_secs": 5
+  }
+}
