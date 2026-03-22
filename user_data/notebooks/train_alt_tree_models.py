@@ -24,6 +24,14 @@ def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
+def compute_atr(frame: pd.DataFrame, period: int = 14) -> pd.Series:
+    high_low = frame["high"] - frame["low"]
+    high_close = (frame["high"] - frame["close"].shift(1)).abs()
+    low_close = (frame["low"] - frame["close"].shift(1)).abs()
+    true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    return true_range.rolling(period).mean()
+
+
 def build_features(frame: pd.DataFrame, pair: str, horizon: int, threshold: float) -> pd.DataFrame:
     df = frame.copy()
     df["pair"] = pair
@@ -31,17 +39,34 @@ def build_features(frame: pd.DataFrame, pair: str, horizon: int, threshold: floa
     df["ret_3"] = df["close"].pct_change(3)
     df["ret_6"] = df["close"].pct_change(6)
     df["ret_12"] = df["close"].pct_change(12)
+    df["ret_24"] = df["close"].pct_change(24)
     df["range_pct"] = (df["high"] - df["low"]) / df["open"].replace(0, np.nan)
     df["body_pct"] = (df["close"] - df["open"]).abs() / df["open"].replace(0, np.nan)
     df["direction"] = (df["close"] - df["open"]) / df["open"].replace(0, np.nan)
+    df["upper_wick_pct"] = (df["high"] - df[["open", "close"]].max(axis=1)) / df["open"].replace(0, np.nan)
+    df["lower_wick_pct"] = (df[["open", "close"]].min(axis=1) - df["low"]) / df["open"].replace(0, np.nan)
     df["volume_ratio_6"] = df["volume"] / df["volume"].rolling(6).mean()
     df["volume_ratio_24"] = df["volume"] / df["volume"].rolling(24).mean()
+    df["volume_trend_24_72"] = (
+        df["volume"].ewm(span=24, adjust=False).mean() / df["volume"].ewm(span=72, adjust=False).mean()
+    ) - 1
+    df["volume_zscore_24"] = (
+        (df["volume"] - df["volume"].rolling(24).mean()) / df["volume"].rolling(24).std().replace(0, np.nan)
+    )
     df["volatility_12"] = df["close"].pct_change().rolling(12).std()
     df["volatility_24"] = df["close"].pct_change().rolling(24).std()
+    df["volatility_ratio_12_24"] = df["volatility_12"] / df["volatility_24"].replace(0, np.nan)
     df["ema_8"] = df["close"].ewm(span=8, adjust=False).mean()
     df["ema_21"] = df["close"].ewm(span=21, adjust=False).mean()
+    df["ema_55"] = df["close"].ewm(span=55, adjust=False).mean()
     df["ema_gap"] = (df["ema_8"] - df["ema_21"]) / df["close"].replace(0, np.nan)
+    df["ema_8_55_gap"] = (df["ema_8"] - df["ema_55"]) / df["close"].replace(0, np.nan)
+    df["ema_gap_slope_3"] = df["ema_gap"].diff(3)
     df["rsi_14"] = compute_rsi(df["close"], 14) / 100.0
+    df["atr_14_pct"] = compute_atr(df, 14) / df["close"].replace(0, np.nan)
+    df["price_vs_rollmean_24"] = df["close"] / df["close"].rolling(24).mean() - 1
+    df["breakout_24"] = df["close"] / df["high"].rolling(24).max() - 1
+    df["breakdown_24"] = df["close"] / df["low"].rolling(24).min() - 1
     df["forward_return"] = df["close"].shift(-horizon) / df["close"] - 1
     df["target"] = 0
     df.loc[df["forward_return"] > threshold, "target"] = 1
@@ -121,7 +146,9 @@ def sanitize_feature_names(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.rename(columns=renamed)
 
 
-def build_pair_breakdown(pair_series: pd.Series, predictions: np.ndarray, forward_returns: pd.Series) -> list:
+def build_pair_breakdown(
+    pair_series: pd.Series, predictions: np.ndarray, forward_returns: pd.Series, recent_window: int
+) -> list:
     rows = []
     for pair in sorted(pair_series.unique()):
         mask = pair_series == pair
@@ -132,6 +159,16 @@ def build_pair_breakdown(pair_series: pd.Series, predictions: np.ndarray, forwar
         long_edge = float(pair_returns[long_mask].mean()) if long_mask.any() else 0.0
         short_edge = float((-pair_returns[short_mask]).mean()) if short_mask.any() else 0.0
         score = (max(long_edge, short_edge) * 1000.0) + (long_mask.sum() + short_mask.sum()) / 100.0
+
+        recent_predictions = pair_predictions[-recent_window:] if recent_window > 0 else pair_predictions
+        recent_returns = pair_returns.iloc[-recent_window:] if recent_window > 0 else pair_returns
+        recent_long_mask = recent_predictions == 1
+        recent_short_mask = recent_predictions == -1
+        recent_long_edge = float(recent_returns[recent_long_mask].mean()) if recent_long_mask.any() else 0.0
+        recent_short_edge = float((-recent_returns[recent_short_mask]).mean()) if recent_short_mask.any() else 0.0
+        recent_score = (max(recent_long_edge, recent_short_edge) * 1000.0) + (
+            recent_long_mask.sum() + recent_short_mask.sum()
+        ) / 100.0
         rows.append(
             {
                 "pair": pair,
@@ -141,6 +178,10 @@ def build_pair_breakdown(pair_series: pd.Series, predictions: np.ndarray, forwar
                 "long_avg_forward_return": round(long_edge, 4),
                 "short_avg_forward_return": round(short_edge, 4),
                 "score": round(score, 4),
+                "recent_signal_count": int(recent_long_mask.sum() + recent_short_mask.sum()),
+                "recent_long_avg_forward_return": round(recent_long_edge, 4),
+                "recent_short_avg_forward_return": round(recent_short_edge, 4),
+                "recent_score": round(recent_score, 4),
             }
         )
     return rows
@@ -207,13 +248,14 @@ def main():
     parser.add_argument("--timeframe", default="5m")
     parser.add_argument("--horizon", type=int, default=12)
     parser.add_argument("--threshold", type=float, default=0.01)
+    parser.add_argument("--recent-window", type=int, default=288, help="Recent rows per pair used for recent scoring.")
     parser.add_argument(
         "--output-prefix",
         default="/freqtrade/user_data/reports/ml/alt-tree-model-latest",
     )
     parser.add_argument(
         "--models",
-        default="tree,rf,lgbm",
+        default="tree,rf,hgb",
         help="Comma-separated models to train: tree, rf, lgbm, hgb.",
     )
     args = parser.parse_args()
@@ -331,6 +373,7 @@ def main():
             test_pairs,
             np.array(result.pop("predictions")),
             test["forward_return"],
+            args.recent_window,
         )
         results.append(result)
 
@@ -340,6 +383,7 @@ def main():
         "timeframe": args.timeframe,
         "horizon": args.horizon,
         "threshold": args.threshold,
+        "recent_window": args.recent_window,
         "samples": int(len(dataset)),
         "models": requested_models,
     }

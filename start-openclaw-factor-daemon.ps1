@@ -4,7 +4,8 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $root
 $openClawScript = Join-Path $projectRoot 'openclaw\scripts\freqtrade-factor-daemon.ps1'
 $daemonReportDir = Join-Path $root 'reports\daemon'
-$logPath = Join-Path $daemonReportDir 'factor-daemon.log'
+$stdoutPath = Join-Path $daemonReportDir 'factor-daemon.out.log'
+$stderrPath = Join-Path $daemonReportDir 'factor-daemon.err.log'
 $pidPath = Join-Path $daemonReportDir 'factor-daemon.pid'
 
 if (-not (Test-Path $daemonReportDir)) {
@@ -25,11 +26,12 @@ $process = Start-Process powershell `
         '-IntervalMinutes', '30'
     ) `
     -WorkingDirectory $projectRoot `
-    -RedirectStandardOutput $logPath `
-    -RedirectStandardError $logPath `
+    -RedirectStandardOutput $stdoutPath `
+    -RedirectStandardError $stderrPath `
     -WindowStyle Hidden `
     -PassThru
 
 Set-Content -Path $pidPath -Value $process.Id -Encoding ASCII
 Write-Host "Started OpenClaw factor daemon in background. PID=$($process.Id)" -ForegroundColor Cyan
-Write-Host "Log: $logPath" -ForegroundColor Cyan
+Write-Host "Stdout: $stdoutPath" -ForegroundColor Cyan
+Write-Host "Stderr: $stderrPath" -ForegroundColor Cyan

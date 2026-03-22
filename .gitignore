@@ -12,3 +12,6 @@ openclaw.notification.json
 user_data/config.json
 user_data/config.openclaw-auto.json
 user_data/config.openclaw-candidate.json
+user_data/config.openclaw-candidate-fast.json
+user_data/config.openclaw-candidate-stable.json
+user_data/config.openclaw-auto-expanded.json
