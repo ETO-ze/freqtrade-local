@@ -5,8 +5,10 @@ $reportRoot = Join-Path $root 'reports'
 $daemonRoot = Join-Path $reportRoot 'daemon'
 $fastStatusPath = Join-Path $daemonRoot 'factor-daemon-fast-status.json'
 $stableStatusPath = Join-Path $daemonRoot 'factor-daemon-stable-status.json'
+$evolutionStatusPath = Join-Path $daemonRoot 'factor-daemon-evolution-status.json'
 $fastLogPath = Join-Path $daemonRoot 'factor-daemon-fast.out.log'
 $stableLogPath = Join-Path $daemonRoot 'factor-daemon-stable.out.log'
+$evolutionLogPath = Join-Path $daemonRoot 'factor-daemon-evolution.out.log'
 $guidePath = Join-Path $root 'OPENCLAW_FREQTRADE_GUIDE.md'
 $dashboardUrl = 'http://127.0.0.1:8501'
 $botUrl = 'http://127.0.0.1:8081'
@@ -39,6 +41,7 @@ function Show-Header {
     Write-Host ''
     Show-DaemonStatus 'Fast daemon' $fastStatusPath
     Show-DaemonStatus 'Stable daemon' $stableStatusPath
+    Show-DaemonStatus 'Evolution daemon' $evolutionStatusPath
 }
 
 function Pause-And-Return {
@@ -52,15 +55,19 @@ do {
     Write-Host '2. Stop fast daemon'
     Write-Host '3. Start stable daemon'
     Write-Host '4. Stop stable daemon'
-    Write-Host '5. Start factor dashboard'
-    Write-Host '6. Start Freqtrade auto bot'
-    Write-Host '7. Open reports folder'
-    Write-Host '8. Open fast log'
-    Write-Host '9. Open stable log'
-    Write-Host '10. Open guide'
-    Write-Host '11. Open dashboard in browser'
-    Write-Host '12. Open Freqtrade bot API in browser'
-    Write-Host '13. Open GUI control center'
+    Write-Host '5. Start evolution daemon'
+    Write-Host '6. Stop evolution daemon'
+    Write-Host '7. Start factor dashboard'
+    Write-Host '8. Start Freqtrade auto bot'
+    Write-Host '9. Start login workflow'
+    Write-Host '10. Open reports folder'
+    Write-Host '11. Open fast log'
+    Write-Host '12. Open stable log'
+    Write-Host '13. Open evolution log'
+    Write-Host '14. Open guide'
+    Write-Host '15. Open dashboard in browser'
+    Write-Host '16. Open Freqtrade bot API in browser'
+    Write-Host '17. Open GUI control center'
     Write-Host '0. Exit'
     Write-Host ''
 
@@ -83,16 +90,28 @@ do {
             Pause-And-Return
         }
         '5' {
-            Start-Process powershell -ArgumentList @('-ExecutionPolicy', 'Bypass', '-File', (Join-Path $root 'start-factor-lab.ps1'))
+            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-factor-daemon-evolution.ps1')
+            Pause-And-Return
         }
         '6' {
-            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-auto-bot.ps1')
+            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'stop-openclaw-factor-daemon-evolution.ps1')
             Pause-And-Return
         }
         '7' {
-            Start-Process explorer $reportRoot
+            Start-Process powershell -ArgumentList @('-ExecutionPolicy', 'Bypass', '-File', (Join-Path $root 'start-factor-lab.ps1'))
         }
         '8' {
+            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-auto-bot.ps1')
+            Pause-And-Return
+        }
+        '9' {
+            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-on-login.ps1')
+            Pause-And-Return
+        }
+        '10' {
+            Start-Process explorer $reportRoot
+        }
+        '11' {
             if (Test-Path $fastLogPath) {
                 Start-Process notepad $fastLogPath
             }
@@ -101,7 +120,7 @@ do {
                 Pause-And-Return
             }
         }
-        '9' {
+        '12' {
             if (Test-Path $stableLogPath) {
                 Start-Process notepad $stableLogPath
             }
@@ -110,16 +129,25 @@ do {
                 Pause-And-Return
             }
         }
-        '10' {
+        '13' {
+            if (Test-Path $evolutionLogPath) {
+                Start-Process notepad $evolutionLogPath
+            }
+            else {
+                Write-Host 'Evolution log file not found yet.' -ForegroundColor Yellow
+                Pause-And-Return
+            }
+        }
+        '14' {
             Start-Process notepad $guidePath
         }
-        '11' {
+        '15' {
             Start-Process $dashboardUrl
         }
-        '12' {
+        '16' {
             Start-Process $botUrl
         }
-        '13' {
+        '17' {
             Start-Process powershell -ArgumentList @('-ExecutionPolicy', 'Bypass', '-Command', "py `"$root\start-openclaw-control-center-gui.py`"")
         }
         '0' {

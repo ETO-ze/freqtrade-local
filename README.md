@@ -1,190 +1,289 @@
 # OpenClaw + Freqtrade Local Workspace
 
-A local crypto-quant workspace that combines:
+中文 | English
 
-- OpenClaw-driven multi-model factor training
-- robust pair screening and candidate rotation
-- automatic Freqtrade candidate backtesting
-- gated promotion into an OKX dry-run bot
-- a read-only dashboard for model and screening visibility
+一个本地化的币圈量化工作区，用 `OpenClaw` 做后台因子筛选和流程编排，用 `Freqtrade` 做 OKX 模拟盘执行。
 
-This repo is the local workspace layer. It is designed to live next to an OpenClaw checkout and use the OpenClaw scripts as the automation engine.
+A local crypto-quant workspace that uses `OpenClaw` for factor screening and workflow orchestration, and `Freqtrade` for OKX dry-run execution.
 
-## What This Project Solves
+## 项目概览 | Overview
 
-Instead of manually training factors, copying pairlists, and rerunning backtests, this workspace lets you:
+这套工作区的目标不是“单次回测脚本”，而是一条持续运行的本地自动链路：
 
-1. Continuously train local factor models in the background
-2. Aggregate multiple tree-based models into a best-model view
-3. Screen tradable, observe, and pause buckets
-4. Build a candidate Freqtrade config automatically
-5. Backtest the candidate config before promotion
-6. Update the active OKX dry-run config only when gates pass
+- `Fast` 负责轻量筛选
+- `Stable` 负责正式多模型、自动回测、达标 promotion
+- `Evolution` 保留为手动研究层
+- `Freqtrade` 只运行最后一次审批通过的 active 配置
 
-## Screenshots
+This workspace is not just a one-off backtest setup. It is a continuous local automation loop:
+
+- `Fast` handles lightweight screening
+- `Stable` handles formal multi-model training, backtests, and gated promotion
+- `Evolution` is kept as a manual research layer
+- `Freqtrade` runs only the last approved active config
+
+## 截图 | Screenshots
 
 ### Dashboard Overview
 
-![Dashboard Overview](assets/dashboard-overview.png)
+![Dashboard Overview](/Users/Administrator/Documents/Playground/freqtrade-local/assets/dashboard-overview.png)
 
 ### Best Model View
 
-![Best Model View](assets/dashboard-best-model.png)
+![Best Model View](/Users/Administrator/Documents/Playground/freqtrade-local/assets/dashboard-best-model.png)
 
-## Core Components
+## 当前结构 | Current Runtime Structure
 
-### 1. Background factor daemon
+### 1. Fast Screening
 
-Runs the local OpenClaw workflow on a loop.
+作用：
 
-- multi-model factor training
-- robust screening
-- candidate config generation
-- automatic backtesting
-- promotion gating
+- 高频轻量筛选
+- 刷新因子视图
+- 更新 `tradable / observe / pause`
+- 不做自动 promotion
 
-### 2. Read-only dashboard
+Purpose:
 
-The Streamlit dashboard shows:
+- high-frequency lightweight screening
+- refreshes the local factor view
+- updates `tradable / observe / pause`
+- does not promote configs automatically
 
-- candidate profit and drawdown snapshot
-- current tradable / observe / pause buckets
-- best-model ranking
-- top factor importance
-- historical model reports
-- approval and strategy update reports
+### 2. Stable Promotion
 
-### 3. Freqtrade OKX dry-run bot
+作用：
 
-The active dry-run bot only uses the last approved config.
+- 运行正式多模型流程
+- 自动回测候选配置
+- 达标后更新 active Freqtrade 配置
+- 这是 live 自动链的核心
 
-This keeps live rotation logic separate from:
+当前 live 模型组合：
 
-- local experiments
-- candidate configs
-- one-off backtests
+- `tree`
+- `rf`
+- `hgb`
 
-## Dependency Layout
+Purpose:
 
-This workspace expects a sibling OpenClaw checkout at:
+- runs the formal multi-model workflow
+- backtests candidate configs automatically
+- promotes into the active Freqtrade config only when gates pass
+- this is the production automation path
 
-```text
-../openclaw
-```
+Current live model set:
 
-The local launchers and control scripts call OpenClaw workflow scripts from that folder.
+- `tree`
+- `rf`
+- `hgb`
 
-## Main Features
+### 3. Evolution Research
 
-- Continuous local factor training via background daemon
-- Tree, random forest, LightGBM, and histogram gradient boosting aggregation
-- Best-model selection report
-- Candidate pair rotation for OKX futures dry-run
-- Automatic candidate backtesting
-- Promotion gate before updating active Freqtrade config
-- Telegram summary notifications
-- Local control center and one-click launchers
+作用：
 
-## Quick Start
+- 研究更优因子组合和 profile
+- 只做离线/手动探索
+- 不直接接入 live promotion
 
-### Option 1: use the control center
+Purpose:
 
-Open:
+- explore better feature subsets and model profiles
+- manual / offline research only
+- does not directly control live promotion
 
-- `OpenClaw Control Center.cmd`
-
-This gives you a local menu for:
-
-- starting the factor daemon
-- stopping the factor daemon
-- launching the dashboard
-- starting the Freqtrade auto bot
-- opening reports and logs
-
-### Option 2: use the direct launchers
-
-- `Start OpenClaw Factor Daemon.cmd`
-- `Launch Factor Dashboard.cmd`
-- `Start Freqtrade Auto Bot.cmd`
-
-## Main Files
-
-### Workspace layer
-
-- `factor_lab.py`
-- `OPENCLAW_FREQTRADE_GUIDE.md`
-- `openclaw-control-center.ps1`
-- `start-openclaw-factor-daemon.ps1`
-- `start-openclaw-auto-bot.ps1`
-
-### OpenClaw workflow layer
-
-- `../openclaw/scripts/freqtrade-daily-ml-screen.ps1`
-- `../openclaw/scripts/freqtrade-factor-daemon.ps1`
-- `../openclaw/scripts/freqtrade-backtest-openclaw-auto.ps1`
-- `../openclaw/scripts/freqtrade-sync-screen-to-config.ps1`
-
-## Security
-
-Real secrets and runtime files are excluded from version control.
-
-Not tracked:
-
-- live Telegram bot token / chat id
-- OKX API credentials
-- local runtime configs
-- local market data
-- backtest result zips
-- sqlite databases
-- local reports and logs
-
-Use the included examples instead:
-
-- `openclaw.notification.example.json`
-- `user_data/config.example.json`
-- `user_data/config.openclaw-auto.example.json`
-
-## Current Workflow
+## 自动化链路 | Automation Flow
 
 ```text
-OpenClaw factor daemon
-  -> train multiple local models
-  -> aggregate factor importance
-  -> screen tradable / observe / pause buckets
-  -> build candidate Freqtrade config
-  -> backtest candidate config
+OpenClaw Fast
+  -> lightweight screening
+  -> local factor refresh
+  -> tradable / observe / pause buckets
+
+OpenClaw Stable
+  -> robust screen
+  -> local multi-model training
+  -> candidate config generation
+  -> candidate backtest
   -> if gates pass, promote candidate
-  -> active OKX dry-run bot keeps running on last approved config
+  -> restart / reuse Freqtrade dry-run bot on approved config
+
+Freqtrade Auto Bot
+  -> runs only the last approved active config
 ```
 
-## Local Dashboard
+## 开机自启动 | Startup Behavior
 
-Start with:
+现在已经整合成单一启动入口。Windows 登录后会通过一个统一启动项完成：
+
+1. 启动 OpenClaw 本体代理
+2. 启动 Docker Desktop
+3. 启动 `stable`
+4. 启动 `fast`
+5. 启动 `Freqtrade` auto bot
+
+The startup flow is now unified into a single Windows startup entry. On login it will:
+
+1. start the OpenClaw proxy
+2. start Docker Desktop
+3. start `stable`
+4. start `fast`
+5. start the `Freqtrade` auto bot
+
+关键入口：
+
+- [start-openclaw-on-login.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-on-login.ps1)
+- [Start OpenClaw On Login.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/Start%20OpenClaw%20On%20Login.cmd)
+
+## 主要功能 | Main Features
+
+- 本地后台树模型训练
+- 宽池山寨币筛选
+- 多模型 best-model 排名
+- 候选配置自动生成
+- 候选策略自动回测
+- 审批达标后自动更新 active 配置
+- Telegram 摘要推送
+- GUI / 控制台总控
+- 开机自动接管 OpenClaw + Freqtrade
+
+- local background tree-model training
+- broad altcoin candidate screening
+- multi-model best-model ranking
+- automatic candidate config generation
+- automatic candidate backtesting
+- gated promotion into the active config
+- Telegram summary pushes
+- GUI / console control center
+- startup takeover for OpenClaw + Freqtrade
+
+## 快速开始 | Quick Start
+
+### 方式一：总控中心 | Option 1: Control Center
+
+打开：
+
+- [OpenClaw Control Center.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/OpenClaw%20Control%20Center.cmd)
+- [OpenClaw Control Center GUI.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/OpenClaw%20Control%20Center%20GUI.cmd)
+
+你可以在里面：
+
+- 启动/停止 `fast`
+- 启动/停止 `stable`
+- 手动启动/停止 `evolution`
+- 启动 `Freqtrade` auto bot
+- 打开看板、日志、报告和说明书
+
+From the control center you can:
+
+- start/stop `fast`
+- start/stop `stable`
+- manually start/stop `evolution`
+- start the `Freqtrade` auto bot
+- open the dashboard, logs, reports, and guide
+
+### 方式二：直接脚本 | Option 2: Direct Scripts
+
+Fast:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-factor-lab.ps1
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
 ```
 
-Then open:
+Stable:
 
-- [http://127.0.0.1:8501](http://127.0.0.1:8501)
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
+```
 
-## Freqtrade Dry-Run Bot
+Evolution:
 
-Start with:
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-evolution.ps1
+```
+
+Freqtrade bot:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
 ```
 
-Bot API:
+## 看板和 Bot | Dashboard and Bot
+
+Dashboard:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-factor-lab.ps1
+```
+
+- [http://127.0.0.1:8501](http://127.0.0.1:8501)
+
+Freqtrade API:
 
 - [http://127.0.0.1:8081](http://127.0.0.1:8081)
 
-## Documentation
+## 关键文件 | Key Files
 
-- `OPENCLAW_FREQTRADE_GUIDE.md`
-- `OPENCLAW_AUTO_SYNC.md`
-- `OPENCLAW_WORKFLOW.md`
-- `ML_TRAINING.md`
-- `FACTOR_LAB.md`
+### Workspace Layer
+
+- [factor_lab.py](/Users/Administrator/Documents/Playground/freqtrade-local/factor_lab.py)
+- [OPENCLAW_FREQTRADE_GUIDE.md](/Users/Administrator/Documents/Playground/freqtrade-local/OPENCLAW_FREQTRADE_GUIDE.md)
+- [openclaw-control-center.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/openclaw-control-center.ps1)
+- [start-openclaw-control-center-gui.py](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-control-center-gui.py)
+- [start-openclaw-on-login.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-on-login.ps1)
+
+### Daemon Launchers
+
+- [start-openclaw-factor-daemon-fast.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-fast.ps1)
+- [start-openclaw-factor-daemon-stable.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-stable.ps1)
+- [start-openclaw-factor-daemon-evolution.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-evolution.ps1)
+- [stop-openclaw-factor-daemon-fast.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-fast.ps1)
+- [stop-openclaw-factor-daemon-stable.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-stable.ps1)
+- [stop-openclaw-factor-daemon-evolution.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-evolution.ps1)
+
+### OpenClaw Workflow Layer
+
+- [freqtrade-daily-ml-screen.ps1](/Users/Administrator/Documents/Playground/openclaw/scripts/freqtrade-daily-ml-screen.ps1)
+- [freqtrade-factor-daemon.ps1](/Users/Administrator/Documents/Playground/openclaw/scripts/freqtrade-factor-daemon.ps1)
+- [freqtrade-backtest-openclaw-auto.ps1](/Users/Administrator/Documents/Playground/openclaw/scripts/freqtrade-backtest-openclaw-auto.ps1)
+- [freqtrade-sync-screen-to-config.ps1](/Users/Administrator/Documents/Playground/openclaw/scripts/freqtrade-sync-screen-to-config.ps1)
+
+## 安全 | Security
+
+真实敏感信息不会上传到仓库。
+
+不会跟踪：
+
+- Telegram bot token / chat id
+- OKX API credentials
+- 本地运行时配置
+- 本地行情数据
+- 回测结果 zip
+- sqlite 数据库
+- 本地日志和报告
+
+Real secrets and runtime artifacts are excluded from version control.
+
+Not tracked:
+
+- Telegram bot token / chat id
+- OKX API credentials
+- local runtime configs
+- local market data
+- backtest result zips
+- sqlite databases
+- local logs and reports
+
+模板文件：
+
+- [openclaw.notification.example.json](/Users/Administrator/Documents/Playground/freqtrade-local/openclaw.notification.example.json)
+- [config.example.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/config.example.json)
+- [config.openclaw-auto.example.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/config.openclaw-auto.example.json)
+
+## 文档 | Documentation
+
+- [OPENCLAW_FREQTRADE_GUIDE.md](/Users/Administrator/Documents/Playground/freqtrade-local/OPENCLAW_FREQTRADE_GUIDE.md)
+- [OPENCLAW_AUTO_SYNC.md](/Users/Administrator/Documents/Playground/freqtrade-local/OPENCLAW_AUTO_SYNC.md)
+- [OPENCLAW_WORKFLOW.md](/Users/Administrator/Documents/Playground/freqtrade-local/OPENCLAW_WORKFLOW.md)
+- [ML_TRAINING.md](/Users/Administrator/Documents/Playground/freqtrade-local/ML_TRAINING.md)
+- [FACTOR_LAB.md](/Users/Administrator/Documents/Playground/freqtrade-local/FACTOR_LAB.md)

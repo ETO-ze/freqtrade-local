@@ -8,6 +8,7 @@ Main parts:
 
 1. Fast daemon
 - Interval: 20 minutes
+- Startup delay: 45 seconds
 - Purpose: refresh the local screening view quickly
 - Model set: `rf`
 - Candidate pool: local-wide OKX alt futures pairs with local `5m` data
@@ -20,8 +21,18 @@ Main parts:
 - Candidate pool: local-wide OKX alt futures pairs with local `5m` data
 - Auto backtest: enabled
 - Promotion rule: only update active Freqtrade config when gates pass
+- Evolution search: currently disabled in the live stable daemon so the automation stays reliable; use evolution as a manual/offline experiment path
 
-3. OpenClaw workflow
+3. Evolution daemon
+- Interval: 720 minutes
+- Startup delay: 15 seconds
+- Purpose: manual research and profile exploration only
+- Model set: `tree,rf,hgb`
+- Evolution search: enabled
+- Auto backtest: disabled
+- Promotion rule: disabled
+
+4. OpenClaw workflow
 - Runs robust screening
 - Trains local tree models in Docker
 - Aggregates factors and pair rankings
@@ -29,20 +40,23 @@ Main parts:
 - Runs candidate backtest on the stable path
 - Pushes summary updates to Telegram
 
-4. Freqtrade OKX dry-run bot
+5. Freqtrade OKX dry-run bot
 - Runs the last approved strategy config in OKX futures simulation mode
 - API URL: [http://127.0.0.1:8081](http://127.0.0.1:8081)
 
-5. Read-only Factor Lab dashboard
+6. Read-only Factor Lab dashboard
 - Shows latest model reports, pair buckets, best-model summaries, and approval output
 - URL: [http://127.0.0.1:8501](http://127.0.0.1:8501)
 
 ## Current Runtime Logic
 
-1. Fast and stable daemons now share a workflow lock.
-2. If stable is running a full cycle, fast will skip instead of competing for training resources.
-3. Stable is the only path allowed to promote a candidate into the active Freqtrade auto config.
-4. The active dry-run bot keeps using the last approved config until a new candidate passes.
+1. Fast, stable, and evolution daemons share the same workflow lock.
+2. Stable is started first and fast has a startup delay, so the promotion path gets first chance to claim the workflow lock.
+3. Evolution is manual research only and should be started separately when you want to explore feature profiles.
+4. Stable is the only path allowed to promote a candidate into the active Freqtrade auto config.
+5. The active dry-run bot keeps using the last approved config until a new candidate passes.
+6. `latest` approval and backtest files now mirror the stable path only, so fast refreshes do not overwrite promotion status.
+7. On Windows login, OpenClaw now starts Docker Desktop, stable, fast, and the Freqtrade auto bot automatically.
 
 ## Candidate Pool And Factor Model
 
@@ -72,7 +86,15 @@ What has been verified locally:
 Reference outputs:
 - Fast combined JSON: [openclaw-daily-alt-ml-fast.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-daily-alt-ml-fast.json)
 - Fast best-model JSON: [openclaw-best-model-fast.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-best-model-fast.json)
+- Fast approval: [openclaw-auto-approval-fast.md](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-auto-approval-fast.md)
 - Fast model JSON: [daily-alt-tree-model-fast.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/reports/ml/daily-alt-tree-model-fast.json)
+- Stable combined JSON: [openclaw-daily-alt-ml-stable.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-daily-alt-ml-stable.json)
+- Stable best-model JSON: [openclaw-best-model-stable.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-best-model-stable.json)
+- Stable approval: [openclaw-auto-approval-stable.md](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-auto-approval-stable.md)
+- Stable backtest JSON: [openclaw-auto-backtest-stable.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-auto-backtest-stable.json)
+- Evolution combined JSON: [openclaw-daily-alt-ml-evolution.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-daily-alt-ml-evolution.json)
+- Evolution best-model JSON: [openclaw-best-model-evolution.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-best-model-evolution.json)
+- Evolution profile output: [daily-alt-evolution-research.profile.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/reports/ml/daily-alt-evolution-research.profile.json)
 - Multi-model smoke test: [factor-multimodel-smoketest.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/reports/ml/factor-multimodel-smoketest.json)
 
 ## Telegram Bot
@@ -113,6 +135,24 @@ Stop stable daemon:
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\stop-openclaw-factor-daemon-stable.ps1
 ```
 
+Start evolution daemon:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-evolution.ps1
+```
+
+Stop evolution daemon:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\stop-openclaw-factor-daemon-evolution.ps1
+```
+
+Run startup workflow:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-on-login.ps1
+```
+
 Start approved Freqtrade dry-run bot:
 
 ```powershell
@@ -138,6 +178,7 @@ In [freqtrade-local](/Users/Administrator/Documents/Playground/freqtrade-local):
 - [Launch Factor Dashboard.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/Launch%20Factor%20Dashboard.cmd)
 - [Start OpenClaw Fast Daemon.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/Start%20OpenClaw%20Fast%20Daemon.cmd)
 - [Start OpenClaw Stable Daemon.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/Start%20OpenClaw%20Stable%20Daemon.cmd)
+- [Start OpenClaw On Login.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/Start%20OpenClaw%20On%20Login.cmd)
 - [Start Freqtrade Auto Bot.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/Start%20Freqtrade%20Auto%20Bot.cmd)
 - [OpenClaw Control Center.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/OpenClaw%20Control%20Center.cmd)
 - [OpenClaw Control Center GUI.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/OpenClaw%20Control%20Center%20GUI.cmd)
@@ -156,8 +197,11 @@ Workflow scripts:
 Daemon launchers:
 - [start-openclaw-factor-daemon-fast.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-fast.ps1)
 - [start-openclaw-factor-daemon-stable.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-stable.ps1)
+- [start-openclaw-factor-daemon-evolution.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-evolution.ps1)
+- [start-openclaw-on-login.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-on-login.ps1)
 - [stop-openclaw-factor-daemon-fast.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-fast.ps1)
 - [stop-openclaw-factor-daemon-stable.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-stable.ps1)
+- [stop-openclaw-factor-daemon-evolution.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-evolution.ps1)
 
 Control center:
 - [openclaw-control-center.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/openclaw-control-center.ps1)
@@ -185,6 +229,15 @@ Stable:
 - [factor-daemon-stable.out.log](/Users/Administrator/Documents/Playground/freqtrade-local/reports/daemon/factor-daemon-stable.out.log)
 - [factor-daemon-stable.err.log](/Users/Administrator/Documents/Playground/freqtrade-local/reports/daemon/factor-daemon-stable.err.log)
 
+Evolution:
+- [factor-daemon-evolution-status.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/daemon/factor-daemon-evolution-status.json)
+- [factor-daemon-evolution.out.log](/Users/Administrator/Documents/Playground/freqtrade-local/reports/daemon/factor-daemon-evolution.out.log)
+- [factor-daemon-evolution.err.log](/Users/Administrator/Documents/Playground/freqtrade-local/reports/daemon/factor-daemon-evolution.err.log)
+
+Promotion reports:
+- Stable latest approval alias: [openclaw-auto-approval-latest.md](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-auto-approval-latest.md)
+- Stable latest backtest alias: [openclaw-auto-backtest-latest.json](/Users/Administrator/Documents/Playground/freqtrade-local/reports/openclaw-auto-backtest-latest.json)
+
 Shared run lock:
 - `C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\daemon\openclaw-ml-workflow.lock`
 
@@ -196,4 +249,5 @@ Shared run lock:
 4. Expected behavior:
 - Fast may show `skipped` when stable is running. This is normal.
 - Stable should show `running` during a full cycle and `ok` after completion.
+- Evolution should be started manually and may run for a long time.
 - The dry-run bot should answer ping on [http://127.0.0.1:8081/api/v1/ping](http://127.0.0.1:8081/api/v1/ping)

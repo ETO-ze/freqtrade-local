@@ -2,6 +2,7 @@ import argparse
 import json
 import re
 from pathlib import Path
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -89,6 +90,119 @@ def load_dataset(data_dir: Path, pairs, timeframe: str, horizon: int, threshold:
     dataset["pair_name"] = dataset["pair"]
     dataset = pd.get_dummies(dataset, columns=["pair"], prefix="pair")
     return dataset.sort_values("date").reset_index(drop=True)
+
+
+def get_feature_columns(dataset: pd.DataFrame) -> List[str]:
+    return [
+        column
+        for column in dataset.columns
+        if column
+        not in {"date", "open", "high", "low", "close", "volume", "forward_return", "target", "pair_name"}
+    ]
+
+
+def load_profile(path: Optional[str]) -> dict:
+    if not path:
+        return {}
+    profile_path = Path(path)
+    if not profile_path.exists():
+        raise FileNotFoundError(f"Profile json not found: {profile_path}")
+    return json.loads(profile_path.read_text(encoding="utf-8"))
+
+
+def build_feature_mapping(feature_columns: List[str], sanitized_columns: List[str]) -> Dict[str, str]:
+    return dict(zip(feature_columns, sanitized_columns))
+
+
+def resolve_feature_subset(
+    feature_columns: List[str],
+    feature_mapping: Dict[str, str],
+    model_profile: dict,
+    global_features: Optional[List[str]],
+) -> List[str]:
+    requested = model_profile.get("features") or global_features or feature_columns
+    resolved = []
+    for feature in requested:
+        if feature in feature_mapping:
+            resolved.append(feature_mapping[feature])
+    return resolved or list(feature_mapping.values())
+
+
+def build_models(requested_models: List[str], profile: dict):
+    defaults = {
+        "tree": {
+            "name": "DecisionTreeClassifier",
+            "params": {
+                "max_depth": 6,
+                "min_samples_leaf": 80,
+                "class_weight": "balanced",
+                "random_state": 42,
+            },
+        },
+        "rf": {
+            "name": "RandomForestClassifier",
+            "params": {
+                "n_estimators": 300,
+                "max_depth": 8,
+                "min_samples_leaf": 40,
+                "class_weight": "balanced_subsample",
+                "n_jobs": -1,
+                "random_state": 42,
+            },
+        },
+        "hgb": {
+            "name": "HistGradientBoostingClassifier",
+            "params": {
+                "learning_rate": 0.05,
+                "max_depth": 8,
+                "max_iter": 250,
+                "min_samples_leaf": 80,
+                "random_state": 42,
+            },
+        },
+    }
+
+    if LGBMClassifier is not None:
+        defaults["lgbm"] = {
+            "name": "LGBMClassifier",
+            "params": {
+                "objective": "multiclass",
+                "num_class": 3,
+                "n_estimators": 350,
+                "learning_rate": 0.05,
+                "num_leaves": 63,
+                "subsample": 0.85,
+                "colsample_bytree": 0.85,
+                "reg_alpha": 0.1,
+                "reg_lambda": 0.2,
+                "random_state": 42,
+                "class_weight": "balanced",
+                "verbosity": -1,
+            },
+        }
+
+    profile_models = profile.get("models", {})
+    models = []
+    for key in requested_models:
+        if key not in defaults:
+            continue
+        model_profile = profile_models.get(key, {})
+        if model_profile.get("enabled", True) is False:
+            continue
+        params = defaults[key]["params"].copy()
+        params.update(model_profile.get("params", {}))
+        if key == "tree":
+            model = DecisionTreeClassifier(**params)
+        elif key == "rf":
+            model = RandomForestClassifier(**params)
+        elif key == "hgb":
+            model = HistGradientBoostingClassifier(**params)
+        elif key == "lgbm" and LGBMClassifier is not None:
+            model = LGBMClassifier(**params)
+        else:
+            continue
+        models.append((key, defaults[key]["name"], model, model_profile))
+    return models
 
 
 def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_returns):
@@ -258,21 +372,17 @@ def main():
         default="tree,rf,hgb",
         help="Comma-separated models to train: tree, rf, lgbm, hgb.",
     )
+    parser.add_argument("--profile-json", default="", help="Optional model evolution profile json.")
     args = parser.parse_args()
 
     data_dir = Path(args.data_dir)
     output_prefix = Path(args.output_prefix)
     output_prefix.parent.mkdir(parents=True, exist_ok=True)
     pairs = [pair.strip() for pair in args.pairs.split(",") if pair.strip()]
+    profile = load_profile(args.profile_json)
 
     dataset = load_dataset(data_dir, pairs, args.timeframe, args.horizon, args.threshold)
-
-    feature_columns = [
-        column
-        for column in dataset.columns
-        if column
-        not in {"date", "open", "high", "low", "close", "volume", "forward_return", "target", "pair_name"}
-    ]
+    feature_columns = get_feature_columns(dataset)
     split_index = int(len(dataset) * 0.8)
     train = dataset.iloc[:split_index]
     test = dataset.iloc[split_index:]
@@ -285,90 +395,30 @@ def main():
 
     x_train = sanitize_feature_names(x_train)
     x_test = x_test.rename(columns=dict(zip(feature_columns, x_train.columns.tolist())))
+    feature_mapping = build_feature_mapping(feature_columns, x_train.columns.tolist())
+    global_features = profile.get("global_features")
 
     requested_models = [item.strip().lower() for item in args.models.split(",") if item.strip()]
-    models = []
-
-    if "tree" in requested_models:
-        models.append(
-            (
-                "DecisionTreeClassifier",
-                DecisionTreeClassifier(
-                    max_depth=6,
-                    min_samples_leaf=80,
-                    class_weight="balanced",
-                    random_state=42,
-                ),
-            )
-        )
-
-    if "rf" in requested_models:
-        models.append(
-            (
-                "RandomForestClassifier",
-                RandomForestClassifier(
-                    n_estimators=300,
-                    max_depth=8,
-                    min_samples_leaf=40,
-                    class_weight="balanced_subsample",
-                    n_jobs=-1,
-                    random_state=42,
-                ),
-            )
-        )
-
-    if "lgbm" in requested_models:
-        if LGBMClassifier is not None:
-            models.append(
-                (
-                    "LGBMClassifier",
-                    LGBMClassifier(
-                        objective="multiclass",
-                        num_class=3,
-                        n_estimators=350,
-                        learning_rate=0.05,
-                        num_leaves=63,
-                        subsample=0.85,
-                        colsample_bytree=0.85,
-                        reg_alpha=0.1,
-                        reg_lambda=0.2,
-                        random_state=42,
-                        class_weight="balanced",
-                        verbosity=-1,
-                    ),
-                )
-            )
-        else:
-            print("Skipping LGBMClassifier because lightgbm is not installed.")
-
-    if "hgb" in requested_models:
-        models.append(
-            (
-                "HistGradientBoostingClassifier",
-                HistGradientBoostingClassifier(
-                    learning_rate=0.05,
-                    max_depth=8,
-                    max_iter=250,
-                    min_samples_leaf=80,
-                    random_state=42,
-                ),
-            )
-        )
+    models = build_models(requested_models, profile)
 
     if not models:
         raise ValueError("No valid models were requested.")
 
     results = []
-    for name, model in models:
+    for model_key, name, model, model_profile in models:
+        selected_columns = resolve_feature_subset(feature_columns, feature_mapping, model_profile, global_features)
         result = evaluate_model(
             name,
             model,
-            x_train,
+            x_train[selected_columns],
             y_train,
-            x_test,
+            x_test[selected_columns],
             y_test,
             test["forward_return"],
         )
+        result["feature_count"] = len(selected_columns)
+        result["selected_features"] = selected_columns
+        result["model_key"] = model_key
         result["pair_breakdown"] = build_pair_breakdown(
             test_pairs,
             np.array(result.pop("predictions")),
@@ -386,6 +436,7 @@ def main():
         "recent_window": args.recent_window,
         "samples": int(len(dataset)),
         "models": requested_models,
+        "profile_json": args.profile_json or None,
     }
 
     json_path = output_prefix.with_suffix(".json")
