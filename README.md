@@ -1,21 +1,33 @@
 # OpenClaw + Freqtrade Local Workspace
 
+![OpenClaw + Freqtrade Icon](assets/openclaw-freqtrade-icon.png)
+
 中文 | English
 
 一个本地化的币圈量化工作区，用 `OpenClaw` 做后台因子筛选和流程编排，用 `Freqtrade` 做 OKX 模拟盘执行。
 
-A local crypto-quant workspace that uses `OpenClaw` for factor screening and workflow orchestration, and `Freqtrade` for OKX dry-run execution.
+A local crypto-quant workspace that uses `OpenClaw` for factor screening and workflow orchestration, and `Freqtrade` for OKX dry-run execution on OKX.
 
-## 项目概览 | Overview
+项目图标文件：
 
-这套工作区的目标不是“单次回测脚本”，而是一条持续运行的本地自动链路：
+- PNG: [assets/openclaw-freqtrade-icon.png](assets/openclaw-freqtrade-icon.png)
+- ICO: [assets/openclaw-freqtrade-icon.ico](assets/openclaw-freqtrade-icon.ico)
+
+Project icon files:
+
+- PNG: [assets/openclaw-freqtrade-icon.png](assets/openclaw-freqtrade-icon.png)
+- ICO: [assets/openclaw-freqtrade-icon.ico](assets/openclaw-freqtrade-icon.ico)
+
+## 概览 | Overview
+
+这不是单次回测脚本，而是一条持续运行的本地自动链路：
 
 - `Fast` 负责轻量筛选
 - `Stable` 负责正式多模型、自动回测、达标 promotion
 - `Evolution` 保留为手动研究层
 - `Freqtrade` 只运行最后一次审批通过的 active 配置
 
-This workspace is not just a one-off backtest setup. It is a continuous local automation loop:
+This is not a one-off backtest setup. It is a continuous local automation loop:
 
 - `Fast` handles lightweight screening
 - `Stable` handles formal multi-model training, backtests, and gated promotion
@@ -26,11 +38,11 @@ This workspace is not just a one-off backtest setup. It is a continuous local au
 
 ### Dashboard Overview
 
-![Dashboard Overview](/Users/Administrator/Documents/Playground/freqtrade-local/assets/dashboard-overview.png)
+![Dashboard Overview](assets/dashboard-overview.png)
 
 ### Best Model View
 
-![Best Model View](/Users/Administrator/Documents/Playground/freqtrade-local/assets/dashboard-best-model.png)
+![Best Model View](assets/dashboard-best-model.png)
 
 ## 当前结构 | Current Runtime Structure
 
@@ -114,7 +126,7 @@ Freqtrade Auto Bot
 
 ## 开机自启动 | Startup Behavior
 
-现在已经整合成单一启动入口。Windows 登录后会通过一个统一启动项完成：
+Windows 登录后会通过统一启动项完成：
 
 1. 启动 OpenClaw 本体代理
 2. 启动 Docker Desktop
@@ -122,7 +134,7 @@ Freqtrade Auto Bot
 4. 启动 `fast`
 5. 启动 `Freqtrade` auto bot
 
-The startup flow is now unified into a single Windows startup entry. On login it will:
+On Windows login, the unified startup entry will:
 
 1. start the OpenClaw proxy
 2. start Docker Desktop
@@ -130,10 +142,10 @@ The startup flow is now unified into a single Windows startup entry. On login it
 4. start `fast`
 5. start the `Freqtrade` auto bot
 
-关键入口：
+关键入口 | Main entry:
 
-- [start-openclaw-on-login.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-on-login.ps1)
-- [Start OpenClaw On Login.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/Start%20OpenClaw%20On%20Login.cmd)
+- [start-openclaw-on-login.ps1](start-openclaw-on-login.ps1)
+- [Start OpenClaw On Login.cmd](Start%20OpenClaw%20On%20Login.cmd)
 
 ## 主要功能 | Main Features
 
@@ -163,8 +175,8 @@ The startup flow is now unified into a single Windows startup entry. On login it
 
 打开：
 
-- [OpenClaw Control Center.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/OpenClaw%20Control%20Center.cmd)
-- [OpenClaw Control Center GUI.cmd](/Users/Administrator/Documents/Playground/freqtrade-local/OpenClaw%20Control%20Center%20GUI.cmd)
+- [OpenClaw Control Center.cmd](OpenClaw%20Control%20Center.cmd)
+- [OpenClaw Control Center GUI.cmd](OpenClaw%20Control%20Center%20GUI.cmd)
 
 你可以在里面：
 
@@ -226,27 +238,27 @@ Freqtrade API:
 
 ### Workspace Layer
 
-- [factor_lab.py](/Users/Administrator/Documents/Playground/freqtrade-local/factor_lab.py)
-- [OPENCLAW_FREQTRADE_GUIDE.md](/Users/Administrator/Documents/Playground/freqtrade-local/OPENCLAW_FREQTRADE_GUIDE.md)
-- [openclaw-control-center.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/openclaw-control-center.ps1)
-- [start-openclaw-control-center-gui.py](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-control-center-gui.py)
-- [start-openclaw-on-login.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-on-login.ps1)
+- [factor_lab.py](factor_lab.py)
+- [OPENCLAW_FREQTRADE_GUIDE.md](OPENCLAW_FREQTRADE_GUIDE.md)
+- [openclaw-control-center.ps1](openclaw-control-center.ps1)
+- [start-openclaw-control-center-gui.py](start-openclaw-control-center-gui.py)
+- [start-openclaw-on-login.ps1](start-openclaw-on-login.ps1)
 
 ### Daemon Launchers
 
-- [start-openclaw-factor-daemon-fast.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-fast.ps1)
-- [start-openclaw-factor-daemon-stable.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-stable.ps1)
-- [start-openclaw-factor-daemon-evolution.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-openclaw-factor-daemon-evolution.ps1)
-- [stop-openclaw-factor-daemon-fast.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-fast.ps1)
-- [stop-openclaw-factor-daemon-stable.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-stable.ps1)
-- [stop-openclaw-factor-daemon-evolution.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-openclaw-factor-daemon-evolution.ps1)
+- [start-openclaw-factor-daemon-fast.ps1](start-openclaw-factor-daemon-fast.ps1)
+- [start-openclaw-factor-daemon-stable.ps1](start-openclaw-factor-daemon-stable.ps1)
+- [start-openclaw-factor-daemon-evolution.ps1](start-openclaw-factor-daemon-evolution.ps1)
+- [stop-openclaw-factor-daemon-fast.ps1](stop-openclaw-factor-daemon-fast.ps1)
+- [stop-openclaw-factor-daemon-stable.ps1](stop-openclaw-factor-daemon-stable.ps1)
+- [stop-openclaw-factor-daemon-evolution.ps1](stop-openclaw-factor-daemon-evolution.ps1)
 
 ### OpenClaw Workflow Layer
 
-- [freqtrade-daily-ml-screen.ps1](/Users/Administrator/Documents/Playground/openclaw/scripts/freqtrade-daily-ml-screen.ps1)
-- [freqtrade-factor-daemon.ps1](/Users/Administrator/Documents/Playground/openclaw/scripts/freqtrade-factor-daemon.ps1)
-- [freqtrade-backtest-openclaw-auto.ps1](/Users/Administrator/Documents/Playground/openclaw/scripts/freqtrade-backtest-openclaw-auto.ps1)
-- [freqtrade-sync-screen-to-config.ps1](/Users/Administrator/Documents/Playground/openclaw/scripts/freqtrade-sync-screen-to-config.ps1)
+- [freqtrade-daily-ml-screen.ps1](../openclaw/scripts/freqtrade-daily-ml-screen.ps1)
+- [freqtrade-factor-daemon.ps1](../openclaw/scripts/freqtrade-factor-daemon.ps1)
+- [freqtrade-backtest-openclaw-auto.ps1](../openclaw/scripts/freqtrade-backtest-openclaw-auto.ps1)
+- [freqtrade-sync-screen-to-config.ps1](../openclaw/scripts/freqtrade-sync-screen-to-config.ps1)
 
 ## 安全 | Security
 
@@ -274,16 +286,16 @@ Not tracked:
 - sqlite databases
 - local logs and reports
 
-模板文件：
+模板文件 | Example templates:
 
-- [openclaw.notification.example.json](/Users/Administrator/Documents/Playground/freqtrade-local/openclaw.notification.example.json)
-- [config.example.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/config.example.json)
-- [config.openclaw-auto.example.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/config.openclaw-auto.example.json)
+- [openclaw.notification.example.json](openclaw.notification.example.json)
+- [config.example.json](user_data/config.example.json)
+- [config.openclaw-auto.example.json](user_data/config.openclaw-auto.example.json)
 
 ## 文档 | Documentation
 
-- [OPENCLAW_FREQTRADE_GUIDE.md](/Users/Administrator/Documents/Playground/freqtrade-local/OPENCLAW_FREQTRADE_GUIDE.md)
-- [OPENCLAW_AUTO_SYNC.md](/Users/Administrator/Documents/Playground/freqtrade-local/OPENCLAW_AUTO_SYNC.md)
-- [OPENCLAW_WORKFLOW.md](/Users/Administrator/Documents/Playground/freqtrade-local/OPENCLAW_WORKFLOW.md)
-- [ML_TRAINING.md](/Users/Administrator/Documents/Playground/freqtrade-local/ML_TRAINING.md)
-- [FACTOR_LAB.md](/Users/Administrator/Documents/Playground/freqtrade-local/FACTOR_LAB.md)
+- [OPENCLAW_FREQTRADE_GUIDE.md](OPENCLAW_FREQTRADE_GUIDE.md)
+- [OPENCLAW_AUTO_SYNC.md](OPENCLAW_AUTO_SYNC.md)
+- [OPENCLAW_WORKFLOW.md](OPENCLAW_WORKFLOW.md)
+- [ML_TRAINING.md](ML_TRAINING.md)
+- [FACTOR_LAB.md](FACTOR_LAB.md)
