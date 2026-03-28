@@ -28,10 +28,10 @@ Current runtime structure:
 ## Screenshots
 
 ### Dashboard Overview
-![Dashboard Overview](assets/dashboard-overview.png)
+![Dashboard Overview](assets/dashboard-overview-20260328.png)
 
-### Best Model View
-![Best Model View](assets/dashboard-best-model.png)
+### Control Center GUI
+![Control Center GUI](assets/control-center-gui-20260328.png)
 
 ## Runtime Layout
 
