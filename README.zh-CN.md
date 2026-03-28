@@ -1,170 +1,170 @@
-# OpenClaw + Freqtrade Local Workspace
+# OpenClaw + Freqtrade 本地量化工作区
 
 ![OpenClaw + Freqtrade Icon](assets/openclaw-freqtrade-icon.png)
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-This repository is a local quant workspace built around `OpenClaw` and `Freqtrade`.
+这个仓库是一套本地量化工作区，核心由 `OpenClaw` 和 `Freqtrade` 组成。
 
-- `OpenClaw` handles factor screening, model training, approval, and automation.
-- `Freqtrade` handles dry-run execution.
-- The altcoin and mainstream systems are isolated by config, ports, databases, and containers.
+- `OpenClaw` 负责因子筛选、模型训练、审批和自动化流程。
+- `Freqtrade` 负责 dry-run 执行。
+- 山寨和主流两套系统已经按配置、端口、数据库、容器彻底隔离。
 
-Project icon files:
+项目图标文件：
 - PNG: [assets/openclaw-freqtrade-icon.png](assets/openclaw-freqtrade-icon.png)
 - ICO: [assets/openclaw-freqtrade-icon.ico](assets/openclaw-freqtrade-icon.ico)
 
-## Screenshots
+## 截图
 
-### Dashboard Overview
+### 看板总览
 ![Dashboard Overview](assets/dashboard-overview-20260328.png)
 
-### Control Center GUI
+### 总控 GUI
 ![Control Center GUI](assets/control-center-gui-20260328.png)
 
-## Runtime Layout
+## 当前运行结构
 
-### Alt Lane
-- Strategy: `AlternativeHunter`
-- Automation: `stable`, `fast`, `autotune`
-- Bot API: [http://127.0.0.1:8081](http://127.0.0.1:8081)
+### 山寨线路
+- 策略：`AlternativeHunter`
+- 自动化：`stable`、`fast`、`autotune`
+- Bot API：[http://127.0.0.1:8081](http://127.0.0.1:8081)
 
-### Mainstream Lane
-- Strategy: `MainstreamHunter`
-- Universe: `BTC/USDT:USDT`, `ETH/USDT:USDT`, `XAU/USDT:USDT`
-- Bot API: [http://127.0.0.1:8082](http://127.0.0.1:8082)
+### 主流线路
+- 策略：`MainstreamHunter`
+- 交易池：`BTC/USDT:USDT`、`ETH/USDT:USDT`、`XAU/USDT:USDT`
+- Bot API：[http://127.0.0.1:8082](http://127.0.0.1:8082)
 
-### Background Services
-- `fast`: lightweight screening only
-- `stable`: full candidate generation, backtest, and gated promotion
-- `evolution`: manual research only
-- `autotune`: low-frequency runtime tuning for `AlternativeHunter`
+### 后台服务
+- `fast`：轻量筛选
+- `stable`：完整候选生成、回测与 gated promotion
+- `evolution`：手动研究层
+- `autotune`：`AlternativeHunter` 的低频运行时调参
 
-## Stable Approval Gates
+## Stable 审批门槛
 
-Current stable promotion gates:
-- Profit `>= 15%`
-- Profit factor `>= 1.9`
-- Max drawdown `<= 8.5%`
+当前 stable promotion 门槛：
+- 收益 `>= 15%`
+- 盈利因子 `>= 1.9`
+- 最大回撤 `<= 8.5%`
 - Sortino `>= 7`
 - Calmar `>= 45`
-- Trades `>= 180`
+- 交易数 `>= 180`
 
-## Quick Start
+## 快速开始
 
-### GUI Control Center
+### GUI 总控中心
 
-Open:
+打开：
 - [OpenClaw Control Center GUI.cmd](OpenClaw%20Control%20Center%20GUI.cmd)
 
-Main actions:
-- start/stop `fast`
-- start/stop `stable`
-- start/stop `evolution`
-- start/stop `autotune`
-- start alt/mainstream bots
-- open dashboard, logs, reports, and guides
+主要功能：
+- 启动/停止 `fast`
+- 启动/停止 `stable`
+- 启动/停止 `evolution`
+- 启动/停止 `autotune`
+- 启动山寨/主流 bot
+- 打开看板、日志、报告和说明文档
 
-### Read-only Dashboard
+### 只读看板
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-factor-lab.ps1
 ```
 
-Open:
+打开：
 - [http://127.0.0.1:8501](http://127.0.0.1:8501)
 
-### Strategy Debug Lab
+### 策略调试面板
 
 ```powershell
 cmd /c "C:\Users\Administrator\Documents\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd"
 ```
 
-Open:
+打开：
 - [http://127.0.0.1:8502](http://127.0.0.1:8502)
 
-## Main Commands
+## 主要命令
 
-### Daemons
+### 后台 daemon
 
-Fast:
+Fast：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
 ```
 
-Stable:
+Stable：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
 ```
 
-Evolution:
+Evolution：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-evolution.ps1
 ```
 
-Autotune:
+Autotune：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-autotune.ps1
 ```
 
-### Bots
+### Bot
 
-Alt bot:
+山寨 bot：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
 ```
 
-Mainstream bot:
+主流 bot：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-mainstream-auto-bot.ps1
 ```
 
-### Startup
+### 开机启动
 
-Windows login startup entry:
+Windows 登录自启动入口：
 - [Start OpenClaw On Login.cmd](Start%20OpenClaw%20On%20Login.cmd)
 
-Script:
+脚本：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-on-login.ps1
 ```
 
-## Key Files
+## 关键文件
 
-Workspace:
+工作区：
 - [factor_lab.py](factor_lab.py)
 - [strategy_debug_lab.py](strategy_debug_lab.py)
 - [start-openclaw-control-center-gui.py](start-openclaw-control-center-gui.py)
 - [OPENCLAW_FREQTRADE_GUIDE.md](OPENCLAW_FREQTRADE_GUIDE.md)
 - [ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md](ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md)
 
-Strategies:
+策略：
 - [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py)
 - [user_data/strategies/MainstreamHunter.py](user_data/strategies/MainstreamHunter.py)
 
-Workflow scripts:
+流程脚本：
 - [../openclaw/scripts/freqtrade-daily-ml-screen.ps1](../openclaw/scripts/freqtrade-daily-ml-screen.ps1)
 - [../openclaw/scripts/freqtrade-backtest-openclaw-auto.ps1](../openclaw/scripts/freqtrade-backtest-openclaw-auto.ps1)
 - [../openclaw/scripts/freqtrade-sync-screen-to-config.ps1](../openclaw/scripts/freqtrade-sync-screen-to-config.ps1)
 
-## Security
+## 安全说明
 
-Not committed:
-- exchange API credentials
+不会提交到仓库的内容：
+- 交易所 API 凭据
 - Telegram token / chat id
-- live runtime secrets
-- local market data
-- local logs
-- local report outputs
-- backtest result zips
-- SQLite databases
+- live 运行时密钥
+- 本地行情数据
+- 本地日志
+- 本地报告输出
+- 回测结果 zip
+- SQLite 数据库
 
-Template files:
+模板文件：
 - [openclaw.notification.example.json](openclaw.notification.example.json)
 - [user_data/config.example.json](user_data/config.example.json)
 - [user_data/config.openclaw-auto.example.json](user_data/config.openclaw-auto.example.json)
 
-## Documentation
+## 文档
 
 - [OPENCLAW_FREQTRADE_GUIDE.md](OPENCLAW_FREQTRADE_GUIDE.md)
 - [STRATEGY_DEBUG_LAB.md](STRATEGY_DEBUG_LAB.md)
