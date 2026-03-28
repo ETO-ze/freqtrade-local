@@ -22,6 +22,6 @@ docker run -d `
   --logfile $logPath `
   --db-url $dbPath `
   --config $configPath `
-  --strategy BlitzkriegHunterAltV53
+  --strategy AlternativeHunter
 
 Write-Host "Started freqtrade-openclaw-auto on http://127.0.0.1:8081" -ForegroundColor Cyan

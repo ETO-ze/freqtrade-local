@@ -21,7 +21,8 @@ if (Test-Path $openclawProxyScript) {
 foreach ($stopFile in @(
     'factor-daemon-fast.stop',
     'factor-daemon-stable.stop',
-    'factor-daemon-evolution.stop'
+    'factor-daemon-evolution.stop',
+    'factor-daemon-autotune.stop'
 )) {
     $stopPath = Join-Path $daemonDir $stopFile
     if (Test-Path $stopPath) {
@@ -53,6 +54,8 @@ if (-not $dockerReady) {
 powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-factor-daemon-stable.ps1')
 Start-Sleep -Seconds 3
 powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-factor-daemon-fast.ps1')
+Start-Sleep -Seconds 3
+powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-factor-daemon-autotune.ps1')
 Start-Sleep -Seconds 3
 powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-auto-bot.ps1')
 

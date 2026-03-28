@@ -12,6 +12,7 @@ $evolutionLogPath = Join-Path $daemonRoot 'factor-daemon-evolution.out.log'
 $guidePath = Join-Path $root 'OPENCLAW_FREQTRADE_GUIDE.md'
 $dashboardUrl = 'http://127.0.0.1:8501'
 $botUrl = 'http://127.0.0.1:8081'
+$mainstreamBotUrl = 'http://127.0.0.1:8082'
 
 function Show-DaemonStatus([string]$Label, [string]$Path) {
     if (Test-Path $Path) {
@@ -68,6 +69,9 @@ do {
     Write-Host '15. Open dashboard in browser'
     Write-Host '16. Open Freqtrade bot API in browser'
     Write-Host '17. Open GUI control center'
+    Write-Host '18. Start mainstream bot'
+    Write-Host '19. Stop mainstream bot'
+    Write-Host '20. Open mainstream bot API in browser'
     Write-Host '0. Exit'
     Write-Host ''
 
@@ -149,6 +153,17 @@ do {
         }
         '17' {
             Start-Process powershell -ArgumentList @('-ExecutionPolicy', 'Bypass', '-Command', "py `"$root\start-openclaw-control-center-gui.py`"")
+        }
+        '18' {
+            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-mainstream-auto-bot.ps1')
+            Pause-And-Return
+        }
+        '19' {
+            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'stop-mainstream-auto-bot.ps1')
+            Pause-And-Return
+        }
+        '20' {
+            Start-Process $mainstreamBotUrl
         }
         '0' {
             break

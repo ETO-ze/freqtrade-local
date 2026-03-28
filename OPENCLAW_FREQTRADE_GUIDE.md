@@ -17,7 +17,7 @@ Main parts:
 2. Stable daemon
 - Interval: 180 minutes
 - Purpose: run the full candidate promotion workflow
-- Model set: `tree,rf,hgb`
+- Model set: `tree,rf,hgb,xgb`
 - Candidate pool: local-wide OKX alt futures pairs with local `5m` data
 - Auto backtest: enabled
 - Promotion rule: only update active Freqtrade config when gates pass
@@ -36,6 +36,7 @@ Main parts:
 - Runs robust screening
 - Trains local tree models in Docker
 - Aggregates factors and pair rankings
+- Writes per-pair runtime policy fields used by `AlternativeHunter`
 - Builds candidate Freqtrade config
 - Runs candidate backtest on the stable path
 - Pushes summary updates to Telegram
@@ -44,9 +45,22 @@ Main parts:
 - Runs the last approved strategy config in OKX futures simulation mode
 - API URL: [http://127.0.0.1:8081](http://127.0.0.1:8081)
 
-6. Read-only Factor Lab dashboard
+6. Mainstream Freqtrade dry-run bot
+- Runs a separate mainstream strategy for BTC / ETH / XAU futures
+- Strategy: `MainstreamHunter`
+- API URL: [http://127.0.0.1:8082](http://127.0.0.1:8082)
+
+7. Read-only Factor Lab dashboard
 - Shows latest model reports, pair buckets, best-model summaries, and approval output
 - URL: [http://127.0.0.1:8501](http://127.0.0.1:8501)
+
+8. Strategy split
+- Altcoin lane: `AlternativeHunter`
+- Mainstream lane: `MainstreamHunter`
+- Mainstream universe: `BTC/USDT:USDT`, `ETH/USDT:USDT`, `XAU/USDT:USDT`
+- On OKX futures, the usable gold perpetual symbol is `XAU/USDT:USDT`
+- On OKX spot, the gold token symbol is `XAUT/USDT`
+- Current mainstream bot is isolated from the altcoin bot by config, API port, database, and log file
 
 ## Current Runtime Logic
 
@@ -57,6 +71,13 @@ Main parts:
 5. The active dry-run bot keeps using the last approved config until a new candidate passes.
 6. `latest` approval and backtest files now mirror the stable path only, so fast refreshes do not overwrite promotion status.
 7. On Windows login, OpenClaw now starts Docker Desktop, stable, fast, and the Freqtrade auto bot automatically.
+8. Stable promotion now uses stability-first gates:
+- profit `>= 15%`
+- profit factor `>= 1.9`
+- max drawdown `<= 8.5%`
+- sortino `>= 7`
+- calmar `>= 45`
+- trades `>= 180`
 
 ## Candidate Pool And Factor Model
 
@@ -71,6 +92,11 @@ Current feature set includes:
 - Trend: `ema_8`, `ema_21`, `ema_55`, `ema_gap`, `ema_8_55_gap`, `ema_gap_slope_3`, `rsi_14`
 - Recent scoring: `recent_score`, `recent_long_avg_forward_return`, `recent_short_avg_forward_return`
 
+Current `AlternativeHunter` runtime policy uses:
+- Direction bias: `allow_long`, `allow_short`, `direction_bias`, `bias_strength`
+- Risk scaling: `stake_scale`, `leverage_cap`, `recent_weight`
+- Entry gating: `entry_confidence_floor`, `trend_strength_multiplier`, `breakout_volume_multiplier`, `trend_volume_multiplier`, `volatility_ceiling_multiplier`
+
 Training script:
 - [train_alt_tree_models.py](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/notebooks/train_alt_tree_models.py)
 
@@ -79,8 +105,9 @@ Training script:
 What has been verified locally:
 - Fast pipeline runs successfully against the new local-wide candidate pool
 - New factor fields are present in the generated ML JSON
-- `tree`, `rf`, and `hgb` all work in the training container
-- `lightgbm` is not installed in the current training container, so it is not part of the default live workflow
+- `tree`, `rf`, `hgb`, and `xgb` work in the current training workflow
+- `AlternativeHunter` is the current live alt strategy
+- Stable promotion uses the stability-first approval gate above
 - Shared workflow locking is enabled to prevent fast and stable from training at the same time
 
 Reference outputs:
@@ -159,6 +186,18 @@ Start approved Freqtrade dry-run bot:
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
 ```
 
+Start mainstream dry-run bot:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-mainstream-auto-bot.ps1
+```
+
+Stop mainstream dry-run bot:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\stop-mainstream-auto-bot.ps1
+```
+
 GUI control center:
 
 ```powershell
@@ -210,6 +249,15 @@ Control center:
 Active auto bot config:
 - [config.openclaw-auto.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/config.openclaw-auto.json)
 
+Mainstream auto bot config:
+- [config.mainstream-auto.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/config.mainstream-auto.json)
+- [MainstreamHunter.py](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/strategies/MainstreamHunter.py)
+- [start-mainstream-auto-bot.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/start-mainstream-auto-bot.ps1)
+- [stop-mainstream-auto-bot.ps1](/Users/Administrator/Documents/Playground/freqtrade-local/stop-mainstream-auto-bot.ps1)
+- Port: `8082`
+- Database: `tradesv3-mainstream-auto.sqlite`
+- Log: `user_data/logs/freqtrade-mainstream-auto.log`
+
 Candidate outputs:
 - [config.openclaw-candidate-fast.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/config.openclaw-candidate-fast.json)
 - [config.openclaw-candidate-stable.json](/Users/Administrator/Documents/Playground/freqtrade-local/user_data/config.openclaw-candidate-stable.json)
@@ -248,6 +296,8 @@ Shared run lock:
 3. Read the matching `.out.log`.
 4. Expected behavior:
 - Fast may show `skipped` when stable is running. This is normal.
-- Stable should show `running` during a full cycle and `ok` after completion.
+- Stable should show `running` during a full cycle and `stopped` after a manual stop.
 - Evolution should be started manually and may run for a long time.
+- Autotune may briefly show `starting` before switching to its next steady state.
 - The dry-run bot should answer ping on [http://127.0.0.1:8081/api/v1/ping](http://127.0.0.1:8081/api/v1/ping)
+- The mainstream dry-run bot should answer ping on [http://127.0.0.1:8082/api/v1/ping](http://127.0.0.1:8082/api/v1/ping)

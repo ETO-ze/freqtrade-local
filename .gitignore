@@ -15,3 +15,8 @@ user_data/config.openclaw-candidate.json
 user_data/config.openclaw-candidate-fast.json
 user_data/config.openclaw-candidate-stable.json
 user_data/config.openclaw-auto-expanded.json
+user_data/config.openclaw-candidate-stable-8.json
+user_data/config.openclaw-candidate-stable-10.json
+user_data/config.backtest.strategylab.json
+user_data/model_runtime_policy.json
+user_data/model_runtime_tuning.auto.json

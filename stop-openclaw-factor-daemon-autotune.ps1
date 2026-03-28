@@ -2,11 +2,10 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $daemonReportDir = Join-Path $root 'reports\daemon'
-$stopPath = Join-Path $daemonReportDir 'factor-daemon-stable.stop'
-$pidPath = Join-Path $daemonReportDir 'factor-daemon-stable.pid'
-$lockPath = Join-Path $daemonReportDir 'factor-daemon-stable.lock'
-$sharedLockPath = Join-Path $daemonReportDir 'openclaw-ml-workflow.lock'
-$statusPath = Join-Path $daemonReportDir 'factor-daemon-stable-status.json'
+$stopPath = Join-Path $daemonReportDir 'factor-daemon-autotune.stop'
+$pidPath = Join-Path $daemonReportDir 'factor-daemon-autotune.pid'
+$lockPath = Join-Path $daemonReportDir 'factor-daemon-autotune.lock'
+$statusPath = Join-Path $daemonReportDir 'factor-daemon-autotune-status.json'
 
 if (-not (Test-Path $daemonReportDir)) {
     Write-Host 'Daemon state directory does not exist.' -ForegroundColor Yellow
@@ -23,24 +22,24 @@ if (Test-Path $pidPath) {
     }
 }
 
-$matchingDaemons = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+ $matchingDaemons = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
     Where-Object {
         $_.Name -eq 'powershell.exe' -and
         $_.CommandLine -match 'freqtrade-factor-daemon\.ps1' -and
-        $_.CommandLine -match 'factor-daemon-stable'
+        $_.CommandLine -match 'factor-daemon-autotune'
     }
 
 foreach ($daemon in $matchingDaemons) {
     try {
         Stop-Process -Id $daemon.ProcessId -Force -ErrorAction Stop
-        Write-Host "Stopped stable daemon PID: $($daemon.ProcessId)" -ForegroundColor Cyan
+        Write-Host "Stopped autotune daemon PID: $($daemon.ProcessId)" -ForegroundColor Cyan
     }
     catch {
-        Write-Host "Failed to stop stable daemon PID $($daemon.ProcessId): $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Failed to stop autotune daemon PID $($daemon.ProcessId): $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
-foreach ($path in @($pidPath, $lockPath, $sharedLockPath)) {
+foreach ($path in @($pidPath, $lockPath)) {
     if (Test-Path $path) {
         Remove-Item $path -Force -ErrorAction SilentlyContinue
     }

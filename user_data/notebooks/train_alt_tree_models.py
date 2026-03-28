@@ -16,6 +16,11 @@ try:
 except ImportError:
     LGBMClassifier = None
 
+try:
+    from xgboost import XGBClassifier
+except ImportError:
+    XGBClassifier = None
+
 
 def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     delta = close.diff()
@@ -128,7 +133,7 @@ def resolve_feature_subset(
     return resolved or list(feature_mapping.values())
 
 
-def build_models(requested_models: List[str], profile: dict):
+def build_models(requested_models: List[str], profile: dict, prefer_gpu: bool = False):
     defaults = {
         "tree": {
             "name": "DecisionTreeClassifier",
@@ -181,6 +186,29 @@ def build_models(requested_models: List[str], profile: dict):
             },
         }
 
+    if XGBClassifier is not None:
+        xgb_params = {
+            "objective": "multi:softmax",
+            "num_class": 3,
+            "n_estimators": 350,
+            "learning_rate": 0.05,
+            "max_depth": 8,
+            "subsample": 0.85,
+            "colsample_bytree": 0.85,
+            "reg_alpha": 0.1,
+            "reg_lambda": 0.2,
+            "random_state": 42,
+            "tree_method": "hist",
+            "verbosity": 0,
+        }
+        if prefer_gpu:
+            xgb_params["device"] = "cuda"
+
+        defaults["xgb"] = {
+            "name": "XGBClassifier",
+            "params": xgb_params,
+        }
+
     profile_models = profile.get("models", {})
     models = []
     for key in requested_models:
@@ -199,6 +227,8 @@ def build_models(requested_models: List[str], profile: dict):
             model = HistGradientBoostingClassifier(**params)
         elif key == "lgbm" and LGBMClassifier is not None:
             model = LGBMClassifier(**params)
+        elif key == "xgb" and XGBClassifier is not None:
+            model = XGBClassifier(**params)
         else:
             continue
         models.append((key, defaults[key]["name"], model, model_profile))
@@ -206,19 +236,47 @@ def build_models(requested_models: List[str], profile: dict):
 
 
 def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_returns):
-    model.fit(x_train, y_train)
-    predictions = model.predict(x_test)
+    label_mapping = None
+    inverse_label_mapping = None
+
+    if getattr(model, "__class__", None).__name__ == "XGBClassifier":
+        unique_labels = sorted(pd.Series(y_train).dropna().unique().tolist())
+        label_mapping = {label: idx for idx, label in enumerate(unique_labels)}
+        inverse_label_mapping = {idx: label for label, idx in label_mapping.items()}
+        mapped_y_train = pd.Series(y_train).map(label_mapping)
+        mapped_y_test = pd.Series(y_test).map(label_mapping)
+        model.fit(x_train, mapped_y_train)
+        raw_predictions = model.predict(x_test)
+        predictions = np.array([inverse_label_mapping[int(item)] for item in raw_predictions])
+        y_test_report = mapped_y_test
+        report_predictions = np.array([label_mapping[int(item)] for item in predictions])
+        report_labels = [label_mapping[label] for label in [-1, 0, 1] if label in label_mapping]
+        report_target_names = [str(inverse_label_mapping[label]) for label in report_labels]
+    else:
+        model.fit(x_train, y_train)
+        predictions = model.predict(x_test)
+        y_test_report = y_test
+        report_predictions = predictions
+        report_labels = [-1, 0, 1]
+        report_target_names = None
 
     mask_long = predictions == 1
     mask_short = predictions == -1
 
     report = classification_report(
-        y_test,
-        predictions,
-        labels=[-1, 0, 1],
+        y_test_report,
+        report_predictions,
+        labels=report_labels,
+        target_names=report_target_names,
         output_dict=True,
         zero_division=0,
     )
+
+    long_report_key = "1"
+    short_report_key = "-1"
+    if label_mapping is not None:
+        long_report_key = str(label_mapping.get(1))
+        short_report_key = str(label_mapping.get(-1))
 
     feature_names = x_train.columns.tolist()
     importances = getattr(model, "feature_importances_", np.zeros(len(feature_names)))
@@ -236,8 +294,8 @@ def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_r
         "predicted_short_count": int(mask_short.sum()),
         "predicted_long_avg_forward_return": round(float(forward_returns[mask_long].mean()) if mask_long.any() else 0.0, 4),
         "predicted_short_avg_forward_return": round(float((-forward_returns[mask_short]).mean()) if mask_short.any() else 0.0, 4),
-        "long_precision": round(float(report["1"]["precision"]), 4),
-        "short_precision": round(float(report["-1"]["precision"]), 4),
+        "long_precision": round(float(report.get(long_report_key, {}).get("precision", 0.0)), 4),
+        "short_precision": round(float(report.get(short_report_key, {}).get("precision", 0.0)), 4),
         "top_features": [{"feature": feature, "importance": round(float(score), 4)} for feature, score in top_features],
         "predictions": predictions.tolist(),
     }
@@ -370,9 +428,10 @@ def main():
     parser.add_argument(
         "--models",
         default="tree,rf,hgb",
-        help="Comma-separated models to train: tree, rf, lgbm, hgb.",
+        help="Comma-separated models to train: tree, rf, lgbm, hgb, xgb.",
     )
     parser.add_argument("--profile-json", default="", help="Optional model evolution profile json.")
+    parser.add_argument("--prefer-gpu", action="store_true", help="Prefer GPU-capable models when available.")
     args = parser.parse_args()
 
     data_dir = Path(args.data_dir)
@@ -399,7 +458,7 @@ def main():
     global_features = profile.get("global_features")
 
     requested_models = [item.strip().lower() for item in args.models.split(",") if item.strip()]
-    models = build_models(requested_models, profile)
+    models = build_models(requested_models, profile, prefer_gpu=args.prefer_gpu)
 
     if not models:
         raise ValueError("No valid models were requested.")

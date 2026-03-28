@@ -43,6 +43,13 @@ MODEL_PARAM_SPACE = {
         "max_iter": [150, 250, 350],
         "min_samples_leaf": [40, 80, 120],
     },
+    "xgb": {
+        "n_estimators": [200, 350, 500],
+        "learning_rate": [0.03, 0.05, 0.08],
+        "max_depth": [6, 8, 10],
+        "subsample": [0.75, 0.85, 1.0],
+        "colsample_bytree": [0.75, 0.85, 1.0],
+    },
 }
 
 
@@ -106,7 +113,7 @@ def mutate_profile(profile: dict, models: list[str], rng: random.Random, mutatio
 
 
 def crossover_profiles(left: dict, right: dict, models: list[str], rng: random.Random) -> dict:
-    child = {"global_features": [], "models": {}}
+    child = {"global_features": [], "models": {}, "prefer_gpu": left.get("prefer_gpu", False) or right.get("prefer_gpu", False)}
     for group, features in FEATURE_GROUPS.items():
         source = left if rng.random() < 0.5 else right
         if any(feature in source["global_features"] for feature in features):
@@ -146,7 +153,7 @@ def score_result(result: dict) -> float:
 
 
 def evaluate_profile(profile: dict, requested_models: list[str], x_train: pd.DataFrame, y_train: pd.Series, x_test: pd.DataFrame, y_test: pd.Series, test_pairs: pd.Series, forward_returns: pd.Series, feature_columns: list[str], feature_mapping: dict[str, str], recent_window: int) -> dict:
-    models = build_models(requested_models, profile)
+    models = build_models(requested_models, profile, prefer_gpu=profile.get("prefer_gpu", False))
     results = []
     for model_key, name, model, model_profile in models:
         selected_columns = []
@@ -193,6 +200,7 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.01)
     parser.add_argument("--recent-window", type=int, default=288)
     parser.add_argument("--models", default="tree,rf,hgb")
+    parser.add_argument("--prefer-gpu", action="store_true")
     parser.add_argument("--population", type=int, default=8)
     parser.add_argument("--generations", type=int, default=3)
     parser.add_argument("--elite", type=int, default=2)
@@ -226,8 +234,11 @@ def main():
     feature_mapping = build_feature_mapping(feature_columns, x_train.columns.tolist())
 
     population = [build_base_profile(requested_models)]
+    population[0]["prefer_gpu"] = args.prefer_gpu
     while len(population) < args.population:
-        population.append(random_profile(requested_models, rng))
+        random_candidate = random_profile(requested_models, rng)
+        random_candidate["prefer_gpu"] = args.prefer_gpu
+        population.append(random_candidate)
 
     history = []
     best = None
