@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DuskRain Control Nexus</title>
+  <meta name="description" content="DuskRain 首页，包含 GitHub、Dashboard、置顶仓库、博客入口与受保护的 Freqtrade 交易台。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=20260426i">
+</head>
+<body>
+  <div class="backdrop"></div>
+  <div class="grid"></div>
+  <div class="noise"></div>
+  <div class="cursor-glow"></div>
+  <main class="shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">DUSKRAIN SYSTEM ENTRY</p>
+        <h1>个人开源入口与量化控制中枢</h1>
+        <p class="lede">
+          这里是 DuskRain 的统一入口。公开层展示 GitHub、核心仓库、Dashboard 与博客入口，交易执行层继续隔离在受保护域名下，避免把机器人控制权限直接暴露在首页。
+        </p>
+        <div class="hero-actions">
+          <a class="button hero-button" href="#modules">查看模块</a>
+          <a class="button hero-button" href="https://github.com/ETO-ze" target="_blank" rel="noopener noreferrer">打开 GitHub</a>
+          <a class="button hero-button" href="https://duskrain.cn/dashboard/" target="_blank" rel="noopener noreferrer">进入看板</a>
+          <a class="button hero-button" href="https://www.duskrain.cn/" target="_blank" rel="noopener noreferrer">进入交易台</a>
+        </div>
+      </div>
+      <section class="signal-card">
+        <div class="signal-head">
+          <span class="dot live"></span>
+          <span>System Broadcast</span>
+        </div>
+        <ul>
+          <li>首页已接入 GitHub 个人主页与置顶仓库展示区。</li>
+          <li>Dashboard 已上线，承接服务器只读状态、同步时间与健康检查展示。</li>
+          <li>Freqtrade 继续走独立受保护入口，不从首页直接暴露控制权限。</li>
+        </ul>
+      </section>
+    </header>
+
+    <section class="feature-strip">
+      <article>
+        <span class="label">01</span>
+        <h2>公开展示层</h2>
+        <p>首页只展示公开资料、个人项目与文档入口，适合对外介绍，不承担敏感交易控制职能。</p>
+      </article>
+      <article>
+        <span class="label">02</span>
+        <h2>监控看板层</h2>
+        <p>Dashboard 负责只读状态聚合，展示 bot 运行状态、最近同步时间和 API 健康检查。</p>
+      </article>
+      <article>
+        <span class="label">03</span>
+        <h2>认证隔离层</h2>
+        <p>交易台仍然通过独立域名与认证链路访问，首页只做跳转，不直接加载机器人面板。</p>
+      </article>
+    </section>
+
+    <section class="modules" id="modules">
+      <div class="section-title">
+        <p class="eyebrow">ACTIVE MODULES</p>
+        <h2>当前模块</h2>
+      </div>
+      <div class="cards module-grid">
+        <article class="module-card">
+          <div class="card-top">
+            <span class="tag">MODULE A</span>
+            <span class="status live">ONLINE</span>
+          </div>
+          <h3>GitHub / 个人开源主页</h3>
+          <p>展示个人项目、仓库更新和公开技术沉淀。当前接入个人 GitHub 主页，适合作为外部访客的第一落点。</p>
+          <div class="meta">
+            <span>账号</span>
+            <code>github.com/ETO-ze</code>
+          </div>
+          <a class="button secondary" href="https://github.com/ETO-ze" target="_blank" rel="noopener noreferrer">打开 GitHub</a>
+        </article>
+
+        <article class="module-card highlight">
+          <div class="card-top">
+            <span class="tag">MODULE B</span>
+            <span class="status live">ONLINE</span>
+          </div>
+          <h3>Dashboard / 实时看板</h3>
+          <p>只读聚合展示层，用于查看服务器 bot 状态、最近同步时间、API 健康检查和后续回测、告警扩展。</p>
+          <div class="meta">
+            <span>入口</span>
+            <code>duskrain.cn/dashboard</code>
+          </div>
+          <a class="button secondary" href="https://duskrain.cn/dashboard/" target="_blank" rel="noopener noreferrer">打开 Dashboard</a>
+        </article>
+
+        <article class="module-card">
+          <div class="card-top">
+            <span class="tag">MODULE C</span>
+            <span class="status pending">BUILDING</span>
+          </div>
+          <h3>Blog / 策略博客</h3>
+          <p>用于沉淀策略研究、参数记录、训练观察、阶段总结与复盘。当前仍是占位页，后续可替换为正式博客系统。</p>
+          <div class="meta">
+            <span>域名</span>
+            <code>blog.duskrain.cn</code>
+          </div>
+          <a class="button secondary" href="https://blog.duskrain.cn/" target="_blank" rel="noopener noreferrer">打开博客模块</a>
+        </article>
+
+        <article class="module-card">
+          <div class="card-top">
+            <span class="tag">MODULE D</span>
+            <span class="status locked">VERIFIED</span>
+          </div>
+          <h3>Freqtrade / 交易控制台</h3>
+          <p>受保护的量化交易入口。交易控制与 API 不在首页直出，统一通过独立域名和认证链路进入。</p>
+          <div class="meta">
+            <span>入口</span>
+            <code>www.duskrain.cn</code>
+          </div>
+          <a class="button secondary" href="https://www.duskrain.cn/" target="_blank" rel="noopener noreferrer">进入验证入口</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="guide-panel">
+      <div class="section-title">
+        <p class="eyebrow">PINNED REPOSITORIES</p>
+        <h2>置顶仓库展示</h2>
+      </div>
+      <div class="guide-grid">
+        <article class="guide-step">
+          <span class="step-index">01</span>
+          <h3>freqtrade-local</h3>
+          <p>本地量化工作台与 OpenClaw + Freqtrade 联动项目，承接策略训练、筛选、回测、同步与控制链路。</p>
+          <a class="button secondary" href="https://github.com/ETO-ze/freqtrade-local" target="_blank" rel="noopener noreferrer">查看仓库</a>
+        </article>
+        <article class="guide-step">
+          <span class="step-index">02</span>
+          <h3>BlitzkriegHunterV01</h3>
+          <p>早期策略版本仓库，适合用来展示策略演进、结构变化与历史思路沉淀。</p>
+          <a class="button secondary" href="https://github.com/ETO-ze/BlitzkriegHunterV01" target="_blank" rel="noopener noreferrer">查看仓库</a>
+        </article>
+        <article class="guide-step">
+          <span class="step-index">03</span>
+          <h3>alpha_sentinel_local</h3>
+          <p>本地化部署项目，包含控制 API、仪表盘与图表展示，适合作为工程化能力展示项。</p>
+          <a class="button secondary" href="https://github.com/ETO-ze/alpha_sentinel_local" target="_blank" rel="noopener noreferrer">查看仓库</a>
+        </article>
+        <article class="guide-step">
+          <span class="step-index">04</span>
+          <h3>wechat-reply-helper</h3>
+          <p>桌面微信回复助手，展示 OpenAI API 接入、桌面自动化和轻量工具开发方向的项目广度。</p>
+          <a class="button secondary" href="https://github.com/ETO-ze/wechat-reply-helper" target="_blank" rel="noopener noreferrer">查看仓库</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="footer-panel">
+      <p class="eyebrow">SYSTEM NOTES</p>
+      <p>当前首页是公开展示层。Dashboard 承担只读状态聚合，交易执行、策略切换与 API 仍保持私有访问。公开层、监控层与控制层已经分离。</p>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const updatePointer = (x, y) => {
+        root.style.setProperty("--mx", `${x}px`);
+        root.style.setProperty("--my", `${y}px`);
+      };
+
+      updatePointer(window.innerWidth * 0.5, window.innerHeight * 0.22);
+
+      window.addEventListener("mousemove", (event) => {
+        updatePointer(event.clientX, event.clientY);
+      }, { passive: true });
+
+      window.addEventListener("mouseleave", () => {
+        updatePointer(window.innerWidth * 0.5, window.innerHeight * 0.22);
+      });
+
+      window.addEventListener("resize", () => {
+        const x = parseFloat(getComputedStyle(root).getPropertyValue("--mx")) || (window.innerWidth * 0.5);
+        const y = parseFloat(getComputedStyle(root).getPropertyValue("--my")) || (window.innerHeight * 0.22);
+        updatePointer(Math.min(x, window.innerWidth), Math.min(y, window.innerHeight));
+      });
+    })();
+  </script>
+</body>
+</html>

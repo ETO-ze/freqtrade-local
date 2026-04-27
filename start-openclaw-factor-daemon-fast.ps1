@@ -93,10 +93,11 @@ $process = Start-Process powershell `
         '-ExecutionPolicy', 'Bypass',
         '-File', $openClawScript,
         '-StateDir', $daemonReportDir,
-        '-IntervalMinutes', '20',
+        '-IntervalMinutes', '60',
         '-StartupDelaySeconds', '45',
         '-DaemonName', 'factor-daemon-fast',
-        '-WorkflowArguments', '-CandidateConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-wide.json|-MlModels|rf|-AutoBacktestFreqtrade|0|-MlOutputPrefix|/freqtrade/user_data/reports/ml/daily-alt-tree-model-fast|-CombinedReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-fast.md|-CombinedJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-fast.json|-StrategyUpdateReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-strategy-update-fast.md|-BestModelJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-fast.json|-BestModelReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-fast.md|-AutoBacktestReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-fast.md|-AutoBacktestJsonReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-fast.json|-ApprovalReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-approval-fast.md|-CandidateTargetConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.openclaw-candidate-fast.json|-UpdateLatestAliases|0'
+        '-SharedRunLockName', 'openclaw-ml-training.lock',
+        '-WorkflowArguments', '-CandidateConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-wide.json|-MarketDataRefreshEnabled|0|-DynamicUniverseEnabled|1|-DynamicUniverseScriptPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\build_dynamic_alt_universe.py|-DynamicUniverseOutputConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-dynamic.fast.generated.json|-DynamicUniverseReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe-fast.md|-DynamicUniverseJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe-fast.json|-DynamicUniverseTopN|20|-MlModels|rf|-RobustScreenCacheTtlMinutes|90|-AutoBacktestFreqtrade|0|-AutoBacktestTimerangeMode|auto|-AutoBacktestLookbackDays|108|-MlOutputPrefix|/freqtrade/user_data/reports/ml/daily-alt-tree-model-fast|-CombinedReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-fast.md|-CombinedJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-fast.json|-StrategyUpdateReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-strategy-update-fast.md|-BestModelJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-fast.json|-BestModelReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-fast.md|-AutoBacktestReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-fast.md|-AutoBacktestJsonReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-fast.json|-ApprovalReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-approval-fast.md|-CandidateTargetConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.openclaw-candidate-fast.json|-UpdateLatestAliases|0'
     ) `
     -WorkingDirectory $projectRoot `
     -RedirectStandardOutput $stdoutPath `
@@ -123,7 +124,7 @@ if (-not $currentStatus -or [int]$currentStatus.pid -ne $process.Id -or [string]
         started_at            = $now
         completed_at          = $null
         status                = 'starting'
-        interval_minutes      = 20
+        interval_minutes      = 60
         startup_delay_seconds = 45
         workflow_script       = $openClawScript
         daemon_name           = 'factor-daemon-fast'

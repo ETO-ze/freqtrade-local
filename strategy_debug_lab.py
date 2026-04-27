@@ -23,6 +23,10 @@ BEST_MODEL_PATH = REPORT_ROOT / "openclaw-best-model-stable.json"
 DEFAULT_CONFIG_PATH = USER_DATA / "config.backtest.alternativehunter.json"
 TEMP_CONFIG_PATH = USER_DATA / "config.backtest.strategylab.json"
 TEMP_POLICY_PATH = USER_DATA / "model_runtime_policy.debug.json"
+AUTOTUNE_SCRIPT_PATH = USER_DATA / "notebooks" / "optimize_alternativehunter_tuning.py"
+OPTIMIZER_JSON_PATH = REPORT_ROOT / "strategy-debug-optimizer.json"
+OPTIMIZER_MD_PATH = REPORT_ROOT / "strategy-debug-optimizer.md"
+DEBUG_APPROVED_TUNING_PATH = USER_DATA / "model_runtime_tuning.debug.json"
 
 DEFAULT_TUNING = {
     "stake_weight": 1.0,
@@ -205,6 +209,70 @@ def run_backtest(
     return result.returncode, result.stdout, result.stderr, latest_backtest_zip() or TEMP_CONFIG_PATH
 
 
+def run_optimizer(
+    strategy_name: str,
+    timerange: str,
+    base_config_path: Path,
+    trials: int,
+    max_pairs: int,
+    max_open_trades: int,
+    stake_amount: float,
+    search_method: str,
+    perturb_scale: float,
+    pso_particles: int,
+    shuffle_pairs: bool,
+    dry_run: bool,
+) -> tuple[int, str, str]:
+    command = [
+        "py",
+        str(AUTOTUNE_SCRIPT_PATH),
+        "--freqtrade-root",
+        str(ROOT),
+        "--runtime-policy",
+        str(RUNTIME_POLICY_PATH),
+        "--base-config",
+        str(base_config_path),
+        "--output-json",
+        str(OPTIMIZER_JSON_PATH),
+        "--output-md",
+        str(OPTIMIZER_MD_PATH),
+        "--approved-tuning",
+        str(DEBUG_APPROVED_TUNING_PATH),
+        "--strategy",
+        strategy_name,
+        "--timerange",
+        timerange,
+        "--trials",
+        str(trials),
+        "--max-pairs",
+        str(max_pairs),
+        "--stake-amount",
+        str(stake_amount),
+        "--max-open-trades",
+        str(max_open_trades),
+        "--search-method",
+        search_method,
+        "--perturb-scale",
+        str(perturb_scale),
+        "--pso-particles",
+        str(pso_particles),
+    ]
+    if shuffle_pairs:
+        command.append("--shuffle-pairs")
+    if dry_run:
+        command.append("--dry-run")
+
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=ROOT,
+    )
+    return result.returncode, result.stdout, result.stderr
+
+
 def render_policy_cards(frame: pd.DataFrame) -> None:
     if frame.empty:
         st.info("No runtime policy available yet.")
@@ -317,6 +385,47 @@ def render_backtest_summary(backtest: dict | None) -> None:
         st.dataframe(display_frame.sort_values("ProfitPct", ascending=False), use_container_width=True, hide_index=True)
 
 
+def render_optimizer_summary(data: dict | None) -> None:
+    if not isinstance(data, dict):
+        st.info("No optimizer result found yet.")
+        return
+
+    best = data.get("best") or {}
+    metrics = best.get("metrics") or {}
+    cols = st.columns(6)
+    cols[0].metric("Method", data.get("search_method", "N/A"))
+    cols[1].metric("Objective", best.get("objective", "N/A"))
+    cols[2].metric("Profit", f"{metrics.get('total_profit_pct', 'N/A')}%")
+    cols[3].metric("PF", metrics.get("profit_factor", "N/A"))
+    cols[4].metric("Drawdown", f"{metrics.get('max_drawdown_pct', 'N/A')}%")
+    cols[5].metric("Trades", metrics.get("trade_count", "N/A"))
+
+    if best.get("tuning"):
+        st.subheader("Best Tuning Candidate")
+        st.json(best["tuning"])
+
+    rows = data.get("results") or []
+    if rows:
+        table = []
+        for row in rows:
+            row_metrics = row.get("metrics") or {}
+            table.append(
+                {
+                    "Trial": row.get("trial"),
+                    "Source": row.get("source"),
+                    "Approved": row.get("approved"),
+                    "Objective": row.get("objective"),
+                    "ProfitPct": row_metrics.get("total_profit_pct"),
+                    "PF": row_metrics.get("profit_factor"),
+                    "Winrate": row_metrics.get("winrate"),
+                    "DrawdownPct": row_metrics.get("max_drawdown_pct"),
+                    "Trades": row_metrics.get("trade_count"),
+                }
+            )
+        st.subheader("Trial Summary")
+        st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+
+
 st.set_page_config(page_title="Strategy Debug Lab", page_icon=":bar_chart:", layout="wide")
 st.title("Strategy Debug Lab")
 st.caption("Visual debugging panel for AlternativeHunter runtime policy, tuning weights, and one-click backtests.")
@@ -327,6 +436,7 @@ best_model = load_json(BEST_MODEL_PATH)
 frame = policy_frame(policy_data if isinstance(policy_data, dict) else {})
 latest_backtest = parse_backtest_zip(latest_backtest_zip()) if latest_backtest_zip() else None
 current_tuning = merged_tuning(policy_data if isinstance(policy_data, dict) else {})
+optimizer_data = load_json(OPTIMIZER_JSON_PATH)
 
 strategy_names = list_strategy_names()
 tradable_pairs = frame.loc[frame["Decision"] == "tradable", "Pair"].tolist() if not frame.empty else []
@@ -365,7 +475,18 @@ with st.sidebar:
     }
     run_button = st.button("Run Backtest", type="primary", use_container_width=True)
 
-overview_tab, pair_tab, backtest_tab = st.tabs(["Policy Overview", "Pair Detail", "Backtest"])
+    st.divider()
+    st.subheader("Auto Optimizer")
+    search_method = st.selectbox("Search Method", ["perturb", "pso", "random"], index=0)
+    optimizer_trials = st.slider("Optimizer Trials", min_value=1, max_value=24, value=4)
+    optimizer_max_pairs = st.slider("Optimizer Max Pairs", min_value=4, max_value=16, value=min(max(len(default_pairs), 8), 12))
+    perturb_scale = st.slider("Perturb Scale", min_value=0.02, max_value=0.5, value=0.18, step=0.02)
+    pso_particles = st.slider("PSO Particles", min_value=2, max_value=8, value=4)
+    shuffle_pairs = st.checkbox("Shuffle Pair Order", value=True)
+    dry_run_optimizer = st.checkbox("Dry Run Only", value=True)
+    optimizer_button = st.button("Run Isolated Optimizer", use_container_width=True)
+
+overview_tab, pair_tab, backtest_tab, optimizer_tab = st.tabs(["Policy Overview", "Pair Detail", "Backtest", "Optimizer"])
 
 with overview_tab:
     if isinstance(best_model, dict):
@@ -430,3 +551,36 @@ with backtest_tab:
         st.code(TEMP_POLICY_PATH.read_text(encoding="utf-8"), language="json")
     else:
         st.info("Debug policy will appear here after the first run.")
+
+with optimizer_tab:
+    st.caption(
+        "Isolated optimizer writes to strategy-debug-optimizer reports and model_runtime_tuning.debug.json. "
+        "It does not replace the live approved tuning file."
+    )
+    if optimizer_button:
+        with st.spinner("Running isolated optimizer..."):
+            code, stdout, stderr = run_optimizer(
+                strategy_name=strategy_name,
+                timerange=timerange,
+                base_config_path=base_config_path,
+                trials=optimizer_trials,
+                max_pairs=optimizer_max_pairs,
+                max_open_trades=max_open_trades,
+                stake_amount=stake_amount,
+                search_method=search_method,
+                perturb_scale=perturb_scale,
+                pso_particles=pso_particles,
+                shuffle_pairs=shuffle_pairs,
+                dry_run=dry_run_optimizer,
+            )
+        if code == 0:
+            st.success("Optimizer finished.")
+            optimizer_data = load_json(OPTIMIZER_JSON_PATH)
+        else:
+            st.error("Optimizer failed.")
+            st.code(stderr or stdout or "No output", language="text")
+
+    render_optimizer_summary(optimizer_data if isinstance(optimizer_data, dict) else None)
+    if OPTIMIZER_MD_PATH.exists():
+        st.subheader("Optimizer Report")
+        st.markdown(OPTIMIZER_MD_PATH.read_text(encoding="utf-8"))

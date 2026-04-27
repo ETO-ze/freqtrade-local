@@ -1,0 +1,9 @@
+{
+  "host": "YOUR_SERVER_HOST",
+  "port": 22,
+  "username": "root",
+  "password": "YOUR_SERVER_PASSWORD",
+  "remote_dir": "/root/freqtrade-local",
+  "bot_container_name": "freqtrade-openclaw-auto",
+  "remote_api_url": "http://127.0.0.1:8081/api/v1/ping"
+}

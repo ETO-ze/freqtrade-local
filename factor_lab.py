@@ -9,6 +9,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from runtime_state import display_daemon_status, duration_label, normalize_daemon_status
+
 
 ROOT = Path(__file__).resolve().parent
 REPORT_ROOT = ROOT / "reports"
@@ -28,37 +30,6 @@ STRATEGY_REPORT = REPORT_ROOT / "openclaw-strategy-update-latest.md"
 APPROVED_HISTORY_REPORT = REPORT_ROOT / "openclaw-approved-history.json"
 ACTIVE_CONFIG_REPORT = ROOT / "user_data" / "config.openclaw-auto.json"
 MAINSTREAM_CONFIG_REPORT = ROOT / "user_data" / "config.mainstream-auto.json"
-
-
-def pid_is_alive(pid: object) -> bool:
-    try:
-        pid_int = int(pid)
-    except (TypeError, ValueError):
-        return False
-    try:
-        os.kill(pid_int, 0)
-        return True
-    except OSError:
-        return False
-
-
-def normalize_daemon_status(name: str, status: dict | None) -> dict | None:
-    if not status:
-        return status
-    normalized = dict(status)
-    stop_path = REPORT_ROOT / "daemon" / f"{name}.stop"
-    if stop_path.exists():
-        normalized["status"] = "stopped"
-        normalized["next_run_after"] = None
-        normalized["error"] = "Stopped by user."
-        return normalized
-    pid = normalized.get("pid")
-    if pid and not pid_is_alive(pid):
-        if str(normalized.get("status", "")).lower() == "running":
-            normalized["status"] = "stopped"
-            normalized["next_run_after"] = None
-            normalized["error"] = "Process exited; status file was stale."
-    return normalized
 
 
 def load_json(path: Path) -> dict | None:
@@ -400,6 +371,7 @@ def render_schedule_status(
         return {
             "service": name,
             "status": status.get("status", "not started"),
+            "status_display": display_daemon_status(status),
             "run": status.get("run", "N/A"),
             "started_at": status.get("started_at"),
             "completed_at": status.get("completed_at"),
@@ -427,8 +399,8 @@ def render_schedule_status(
         with col:
             with st.container(border=True):
                 st.markdown(f"### {row['service'].title()}")
-                st.metric("Status", row["status"])
-                st.metric("Current / Last Duration", row["duration"])
+                st.metric("Status", row["status_display"])
+                st.metric(duration_label({"status": row["status"]}), row["duration"])
                 st.caption(f"Run #{row['run']}")
                 st.caption(f"Started: {humanize_dt(row['started_at'])}")
                 st.caption(f"Completed: {humanize_dt(row['completed_at'])}")
@@ -442,7 +414,7 @@ def render_schedule_status(
         [
             {
                 "Service": row["service"],
-                "Status": row["status"],
+                "Status": row["status_display"],
                 "Run": row["run"],
                 "Started": humanize_dt(row["started_at"]),
                 "Completed": humanize_dt(row["completed_at"]),

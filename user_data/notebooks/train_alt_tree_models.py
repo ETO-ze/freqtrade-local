@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.inspection import permutation_importance
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, classification_report
 from sklearn.tree import DecisionTreeClassifier
 
@@ -38,7 +39,46 @@ def compute_atr(frame: pd.DataFrame, period: int = 14) -> pd.Series:
     return true_range.rolling(period).mean()
 
 
-def build_features(frame: pd.DataFrame, pair: str, horizon: int, threshold: float) -> pd.DataFrame:
+def build_benchmark_features(frame: pd.DataFrame, prefix: str) -> pd.DataFrame:
+    benchmark = frame[["date", "close"]].copy()
+    benchmark[f"{prefix}_ret_1"] = benchmark["close"].pct_change(1)
+    benchmark[f"{prefix}_ret_3"] = benchmark["close"].pct_change(3)
+    benchmark[f"{prefix}_ret_6"] = benchmark["close"].pct_change(6)
+    benchmark[f"{prefix}_ret_12"] = benchmark["close"].pct_change(12)
+    benchmark[f"{prefix}_ret_24"] = benchmark["close"].pct_change(24)
+    benchmark[f"{prefix}_trend_24"] = benchmark["close"] / benchmark["close"].rolling(24).mean() - 1
+    return benchmark.drop(columns=["close"])
+
+
+def resolve_market_data_path(data_dir: Path, stem: str, preferred_timeframe: str) -> Optional[Path]:
+    for timeframe in [preferred_timeframe, "3m", "15m", "1h", "4h", "1d"]:
+        path = data_dir / f"{stem}-{timeframe}-futures.feather"
+        if path.exists():
+            return path
+    return None
+
+
+def merge_asof_feature(base: pd.DataFrame, feature_frame: pd.DataFrame) -> pd.DataFrame:
+    if feature_frame is None or feature_frame.empty:
+        return base
+    return pd.merge_asof(
+        base.sort_values("date"),
+        feature_frame.sort_values("date"),
+        on="date",
+        direction="backward",
+    )
+
+
+def build_features(
+    frame: pd.DataFrame,
+    pair: str,
+    horizon: int,
+    threshold: float,
+    btc_features: Optional[pd.DataFrame] = None,
+    eth_features: Optional[pd.DataFrame] = None,
+    funding_frame: Optional[pd.DataFrame] = None,
+    mark_frame: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
     df = frame.copy()
     df["pair"] = pair
     df["ret_1"] = df["close"].pct_change(1)
@@ -73,6 +113,83 @@ def build_features(frame: pd.DataFrame, pair: str, horizon: int, threshold: floa
     df["price_vs_rollmean_24"] = df["close"] / df["close"].rolling(24).mean() - 1
     df["breakout_24"] = df["close"] / df["high"].rolling(24).max() - 1
     df["breakdown_24"] = df["close"] / df["low"].rolling(24).min() - 1
+
+    df = merge_asof_feature(df, btc_features)
+    df = merge_asof_feature(df, eth_features)
+
+    if funding_frame is not None and not funding_frame.empty:
+        funding_features = funding_frame[["date", "open"]].rename(columns={"open": "funding_rate"}).copy()
+        df = merge_asof_feature(df, funding_features)
+    else:
+        df["funding_rate"] = np.nan
+
+    if mark_frame is not None and not mark_frame.empty:
+        mark_features = mark_frame[["date", "close"]].rename(columns={"close": "mark_close"}).copy()
+        df = merge_asof_feature(df, mark_features)
+    else:
+        df["mark_close"] = np.nan
+
+    df["funding_rate"] = df["funding_rate"].ffill().fillna(0.0)
+    df["funding_rate_change_3"] = df["funding_rate"].diff(3).fillna(0.0)
+    df["funding_rate_abs"] = df["funding_rate"].abs()
+    df["funding_rate_zscore_48"] = (
+        (df["funding_rate"] - df["funding_rate"].rolling(48).mean())
+        / df["funding_rate"].rolling(48).std().replace(0, np.nan)
+    )
+
+    df["mark_close"] = df["mark_close"].ffill().fillna(df["close"])
+    df["mark_premium"] = df["close"] / df["mark_close"].replace(0, np.nan) - 1
+    df["mark_premium_abs"] = df["mark_premium"].abs()
+    df["mark_premium_change_3"] = df["mark_premium"].diff(3)
+    df["mark_premium_zscore_48"] = (
+        (df["mark_premium"] - df["mark_premium"].rolling(48).mean())
+        / df["mark_premium"].rolling(48).std().replace(0, np.nan)
+    )
+
+    for prefix in ("btc", "eth"):
+        for period in (1, 3, 6, 12, 24):
+            column = f"{prefix}_ret_{period}"
+            if column not in df.columns:
+                df[column] = 0.0
+            else:
+                df[column] = df[column].ffill().fillna(0.0)
+        trend_column = f"{prefix}_trend_24"
+        if trend_column not in df.columns:
+            df[trend_column] = 0.0
+        else:
+            df[trend_column] = df[trend_column].ffill().fillna(0.0)
+
+    df["rel_btc_ret_3"] = df["ret_3"] - df["btc_ret_3"]
+    df["rel_btc_ret_12"] = df["ret_12"] - df["btc_ret_12"]
+    df["rel_eth_ret_3"] = df["ret_3"] - df["eth_ret_3"]
+    df["rel_eth_ret_12"] = df["ret_12"] - df["eth_ret_12"]
+    df["btc_beta_48"] = df["ret_1"].rolling(48).corr(df["btc_ret_1"])
+    df["eth_beta_48"] = df["ret_1"].rolling(48).corr(df["eth_ret_1"])
+    df["btc_regime_spread_24"] = df["price_vs_rollmean_24"] - df["btc_trend_24"]
+    df["eth_regime_spread_24"] = df["price_vs_rollmean_24"] - df["eth_trend_24"]
+
+    df["hour_utc"] = pd.to_datetime(df["date"], utc=True).dt.hour
+    df["day_of_week"] = pd.to_datetime(df["date"], utc=True).dt.dayofweek
+    df["hour_sin"] = np.sin(2 * np.pi * df["hour_utc"] / 24.0)
+    df["hour_cos"] = np.cos(2 * np.pi * df["hour_utc"] / 24.0)
+    df["dow_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7.0)
+    df["dow_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7.0)
+    df["is_asia_session"] = df["hour_utc"].between(0, 7).astype(int)
+    df["is_eu_session"] = df["hour_utc"].between(8, 15).astype(int)
+    df["is_us_session"] = df["hour_utc"].between(16, 23).astype(int)
+    df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)
+
+    df["ret_1_zscore_24"] = (
+        (df["ret_1"] - df["ret_1"].rolling(24).mean()) / df["ret_1"].rolling(24).std().replace(0, np.nan)
+    )
+    df["ret_3_zscore_24"] = (
+        (df["ret_3"] - df["ret_3"].rolling(24).mean()) / df["ret_3"].rolling(24).std().replace(0, np.nan)
+    )
+    df["price_volume_divergence_24"] = df["ret_3_zscore_24"] - df["volume_zscore_24"]
+    df["reversion_pressure_24"] = -df["price_vs_rollmean_24"] * df["volume_zscore_24"]
+    df["volume_absorption_24"] = df["direction"] / df["volume_ratio_24"].replace(0, np.nan)
+    df["range_volume_imbalance_24"] = df["range_pct"] * df["volume_zscore_24"]
+
     df["forward_return"] = df["close"].shift(-horizon) / df["close"] - 1
     df["target"] = 0
     df.loc[df["forward_return"] > threshold, "target"] = 1
@@ -81,6 +198,15 @@ def build_features(frame: pd.DataFrame, pair: str, horizon: int, threshold: floa
 
 
 def load_dataset(data_dir: Path, pairs, timeframe: str, horizon: int, threshold: float) -> pd.DataFrame:
+    btc_frame = None
+    eth_frame = None
+    btc_path = resolve_market_data_path(data_dir, "BTC_USDT_USDT", timeframe)
+    eth_path = resolve_market_data_path(data_dir, "ETH_USDT_USDT", timeframe)
+    if btc_path and btc_path.exists():
+        btc_frame = build_benchmark_features(pd.read_feather(btc_path), "btc")
+    if eth_path and eth_path.exists():
+        eth_frame = build_benchmark_features(pd.read_feather(eth_path), "eth")
+
     frames = []
     for pair in pairs:
         stem = pair.replace("/", "_").replace(":", "_")
@@ -88,7 +214,22 @@ def load_dataset(data_dir: Path, pairs, timeframe: str, horizon: int, threshold:
         if not path.exists():
             continue
         frame = pd.read_feather(path)
-        frames.append(build_features(frame, pair, horizon, threshold))
+        funding_path = data_dir / f"{stem}-1h-funding_rate.feather"
+        mark_path = data_dir / f"{stem}-1h-mark.feather"
+        funding_frame = pd.read_feather(funding_path) if funding_path.exists() else None
+        mark_frame = pd.read_feather(mark_path) if mark_path.exists() else None
+        frames.append(
+            build_features(
+                frame,
+                pair,
+                horizon,
+                threshold,
+                btc_features=btc_frame,
+                eth_features=eth_frame,
+                funding_frame=funding_frame,
+                mark_frame=mark_frame,
+            )
+        )
     if not frames:
         raise FileNotFoundError("No matching data files were found for the requested pairs.")
     dataset = pd.concat(frames, ignore_index=True)
@@ -102,7 +243,19 @@ def get_feature_columns(dataset: pd.DataFrame) -> List[str]:
         column
         for column in dataset.columns
         if column
-        not in {"date", "open", "high", "low", "close", "volume", "forward_return", "target", "pair_name"}
+        not in {
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "forward_return",
+            "target",
+            "pair_name",
+            "mark_close",
+            "mark_premium",
+        }
     ]
 
 
@@ -278,13 +431,50 @@ def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_r
         long_report_key = str(label_mapping.get(1))
         short_report_key = str(label_mapping.get(-1))
 
-    feature_names = x_train.columns.tolist()
-    importances = getattr(model, "feature_importances_", np.zeros(len(feature_names)))
-    top_features = sorted(
-        zip(feature_names, importances),
+    feature_names, normalized_importances = extract_feature_importances(model, x_test, y_test)
+    feature_importance_pairs = sorted(
+        zip(feature_names, normalized_importances),
         key=lambda item: item[1],
         reverse=True,
-    )[:10]
+    )
+    top_features = feature_importance_pairs[:10]
+    top_feature_name = top_features[0][0] if top_features else ""
+    top_feature_share = float(top_features[0][1]) if top_features else 0.0
+    top3_feature_share = float(sum(item[1] for item in top_features[:3]))
+    mark_premium_family_share = float(
+        sum(
+            score
+            for feature, score in feature_importance_pairs
+            if feature in {
+                "mark_premium",
+                "mark_premium_abs",
+                "mark_premium_change_3",
+                "mark_premium_zscore_48",
+                "mark_close",
+            }
+        )
+    )
+    orthogonal_feature_share = float(
+        sum(
+            score
+            for feature, score in feature_importance_pairs
+            if (
+                feature.startswith("rel_btc_")
+                or feature.startswith("rel_eth_")
+                or feature.startswith("btc_")
+                or feature.startswith("eth_")
+                or feature.startswith("funding_")
+                or feature in {"hour_sin", "hour_cos", "dow_sin", "dow_cos", "day_of_week"}
+                or feature.startswith("is_")
+                or feature in {
+                    "price_volume_divergence_24",
+                    "reversion_pressure_24",
+                    "volume_absorption_24",
+                    "range_volume_imbalance_24",
+                }
+            )
+        )
+    )
 
     return {
         "model": name,
@@ -296,6 +486,11 @@ def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_r
         "predicted_short_avg_forward_return": round(float((-forward_returns[mask_short]).mean()) if mask_short.any() else 0.0, 4),
         "long_precision": round(float(report.get(long_report_key, {}).get("precision", 0.0)), 4),
         "short_precision": round(float(report.get(short_report_key, {}).get("precision", 0.0)), 4),
+        "top_feature_name": top_feature_name,
+        "top_feature_share": round(top_feature_share, 4),
+        "top3_feature_share": round(top3_feature_share, 4),
+        "mark_premium_family_share": round(mark_premium_family_share, 4),
+        "orthogonal_feature_share": round(orthogonal_feature_share, 4),
         "top_features": [{"feature": feature, "importance": round(float(score), 4)} for feature, score in top_features],
         "predictions": predictions.tolist(),
     }
@@ -357,6 +552,44 @@ def build_pair_breakdown(
             }
         )
     return rows
+
+
+def extract_feature_importances(model, x_eval: pd.DataFrame, y_eval: np.ndarray):
+    feature_names = x_eval.columns.tolist()
+    raw_importances = getattr(model, "feature_importances_", None)
+    if raw_importances is None or len(raw_importances) != len(feature_names):
+        sample_x = x_eval
+        sample_y = y_eval
+        if len(sample_x) > 3000:
+            rng = np.random.default_rng(42)
+            sample_idx = np.sort(rng.choice(len(sample_x), size=3000, replace=False))
+            sample_x = sample_x.iloc[sample_idx]
+            if hasattr(y_eval, "iloc"):
+                sample_y = y_eval.iloc[sample_idx]
+            else:
+                sample_y = y_eval[sample_idx]
+        try:
+            result = permutation_importance(
+                model,
+                sample_x,
+                sample_y,
+                scoring="balanced_accuracy",
+                n_repeats=4,
+                random_state=42,
+                n_jobs=1,
+            )
+            raw_importances = result.importances_mean
+        except Exception:
+            raw_importances = np.zeros(len(feature_names), dtype=float)
+
+    raw_importances = np.nan_to_num(np.asarray(raw_importances, dtype=float), nan=0.0, posinf=0.0, neginf=0.0)
+    positive_importances = np.clip(raw_importances, 0.0, None)
+    total_importance = float(positive_importances.sum())
+    if total_importance > 0:
+        normalized_importances = positive_importances / total_importance
+    else:
+        normalized_importances = np.zeros(len(feature_names), dtype=float)
+    return feature_names, normalized_importances
 
 
 def write_markdown(path: Path, results, metadata):

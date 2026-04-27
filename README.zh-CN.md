@@ -4,41 +4,59 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-这个仓库是一套本地量化工作区，核心由 `OpenClaw` 和 `Freqtrade` 组成。
+这是一个围绕 `OpenClaw` 和 `Freqtrade` 搭建的本地量化研究与执行工作区。
 
 - `OpenClaw` 负责因子筛选、模型训练、审批和自动化流程。
-- `Freqtrade` 负责 dry-run 执行。
-- 山寨和主流两套系统已经按配置、端口、数据库、容器彻底隔离。
+- `Freqtrade` 负责 dry-run 执行，以及服务器侧的 Bot 运行。
+- 山寨与主流两条研究线按配置、端口、数据库和容器隔离。
 
-项目图标文件：
-- PNG: [assets/openclaw-freqtrade-icon.png](assets/openclaw-freqtrade-icon.png)
-- ICO: [assets/openclaw-freqtrade-icon.ico](assets/openclaw-freqtrade-icon.ico)
+另见：
+- [项目概览（EN）](PROJECT_OVERVIEW.md)
+- [项目概览（中文）](PROJECT_OVERVIEW.zh-CN.md)
 
-## 截图
+## 当前公开入口
 
-### 看板总览
-![Dashboard Overview](assets/dashboard-overview-20260328.png)
+- 首页：[https://duskrain.cn](https://duskrain.cn)
+- Vue 看板：[https://duskrain.cn/dashboard/](https://duskrain.cn/dashboard/)
+- 博客：[https://blog.duskrain.cn](https://blog.duskrain.cn)
+- 受保护的 Freqtrade UI：[https://www.duskrain.cn](https://www.duskrain.cn)
 
-### 总控 GUI
-![Control Center GUI](assets/control-center-gui-20260328.png)
+## 当前架构
 
-## 当前运行结构
+### 本地研究链路
+- 动态山寨币池生成
+- Robust Screen
+- 树模型训练（`tree`、`rf`、`hgb`、`xgb`）
+- 候选回测
+- 审批门槛
+- 可选服务器同步
 
-### 山寨线路
-- 策略：`AlternativeHunter`
-- 自动化：`stable`、`fast`、`autotune`
-- Bot API：[http://127.0.0.1:8081](http://127.0.0.1:8081)
+### 服务器执行链路
+- Freqtrade Bot 执行
+- HTTPS + Authenticator 保护的 UI
+- 对外公开的只读看板数据
 
-### 主流线路
-- 策略：`MainstreamHunter`
-- 交易池：`BTC/USDT:USDT`、`ETH/USDT:USDT`、`XAU/USDT:USDT`
-- Bot API：[http://127.0.0.1:8082](http://127.0.0.1:8082)
+## 当前自动化布局
 
-### 后台服务
-- `fast`：轻量筛选
-- `stable`：完整候选生成、回测与 gated promotion
-- `evolution`：手动研究层
-- `autotune`：`AlternativeHunter` 的低频运行时调参
+### `stable`
+- 正式筛选链路
+- 启用本地行情刷新
+- 启用动态币池
+- 当前动态币池宽度：`top_n = 15`
+- 自动回测窗口模式：`auto`
+
+### `fast`
+- 轻量筛选链路
+- 不下载行情
+- 启用动态币池
+- 当前动态币池宽度：`top_n = 20`
+- 不做自动回测，不做 promotion
+
+### `evolution`
+- 仅手动研究
+
+### `autotune`
+- 低频运行时调参
 
 ## Stable 审批门槛
 
@@ -49,6 +67,15 @@
 - Sortino `>= 7`
 - Calmar `>= 45`
 - 交易数 `>= 180`
+- 仅当收益 `>= 18%` 时可绕过交易数门槛
+
+## 截图
+
+### 看板总览
+![Dashboard Overview](assets/dashboard-overview-20260328.png)
+
+### 总控 GUI
+![Control Center GUI](assets/control-center-gui-20260328.png)
 
 ## 快速开始
 
@@ -58,14 +85,14 @@
 - [OpenClaw Control Center GUI.cmd](OpenClaw%20Control%20Center%20GUI.cmd)
 
 主要功能：
-- 启动/停止 `fast`
-- 启动/停止 `stable`
-- 启动/停止 `evolution`
-- 启动/停止 `autotune`
-- 启动山寨/主流 bot
-- 打开看板、日志、报告和说明文档
+- 启动或停止 `fast`
+- 启动或停止 `stable`
+- 启动或停止 `evolution`
+- 启动或停止 `autotune`
+- 打开看板、报告和后台日志
+- 手动把当前运行时配置同步到服务器
 
-### 只读看板
+### 本地只读看板
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-factor-lab.ps1
@@ -85,7 +112,7 @@ cmd /c "C:\Users\Administrator\Documents\Playground\freqtrade-local\Launch Strat
 
 ## 主要命令
 
-### 后台 daemon
+### Daemon
 
 Fast：
 ```powershell
@@ -109,24 +136,14 @@ powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playgr
 
 ### Bot
 
-山寨 bot：
+山寨 Bot：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
 ```
 
-主流 bot：
+主流 Bot：
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-mainstream-auto-bot.ps1
-```
-
-### 开机启动
-
-Windows 登录自启动入口：
-- [Start OpenClaw On Login.cmd](Start%20OpenClaw%20On%20Login.cmd)
-
-脚本：
-```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-on-login.ps1
 ```
 
 ## 关键文件
@@ -135,27 +152,26 @@ powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playgr
 - [factor_lab.py](factor_lab.py)
 - [strategy_debug_lab.py](strategy_debug_lab.py)
 - [start-openclaw-control-center-gui.py](start-openclaw-control-center-gui.py)
-- [OPENCLAW_FREQTRADE_GUIDE.md](OPENCLAW_FREQTRADE_GUIDE.md)
-- [ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md](ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md)
+- [runtime_state.py](runtime_state.py)
+
+动态币池流程：
+- [build_dynamic_alt_universe.py](build_dynamic_alt_universe.py)
+- [refresh_alt_market_data.ps1](refresh_alt_market_data.ps1)
+- [compare_dynamic_universe_topn.ps1](compare_dynamic_universe_topn.ps1)
+- 本地配套工作流脚本：`../openclaw/scripts/freqtrade-daily-ml-screen.ps1`
 
 策略：
 - [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py)
 - [user_data/strategies/MainstreamHunter.py](user_data/strategies/MainstreamHunter.py)
 
-流程脚本：
-- [../openclaw/scripts/freqtrade-daily-ml-screen.ps1](../openclaw/scripts/freqtrade-daily-ml-screen.ps1)
-- [../openclaw/scripts/freqtrade-backtest-openclaw-auto.ps1](../openclaw/scripts/freqtrade-backtest-openclaw-auto.ps1)
-- [../openclaw/scripts/freqtrade-sync-screen-to-config.ps1](../openclaw/scripts/freqtrade-sync-screen-to-config.ps1)
-
 ## 安全说明
 
-不会提交到仓库的内容：
+不会提交到仓库：
 - 交易所 API 凭据
 - Telegram token / chat id
-- live 运行时密钥
+- 服务器同步本地密钥
 - 本地行情数据
-- 本地日志
-- 本地报告输出
+- 报告和日志
 - 回测结果 zip
 - SQLite 数据库
 
@@ -163,9 +179,12 @@ powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playgr
 - [openclaw.notification.example.json](openclaw.notification.example.json)
 - [user_data/config.example.json](user_data/config.example.json)
 - [user_data/config.openclaw-auto.example.json](user_data/config.openclaw-auto.example.json)
+- [server.openclaw-sync.example.json](server.openclaw-sync.example.json)
 
 ## 文档
 
+- [项目概览（EN）](PROJECT_OVERVIEW.md)
+- [项目概览（中文）](PROJECT_OVERVIEW.zh-CN.md)
 - [OPENCLAW_FREQTRADE_GUIDE.md](OPENCLAW_FREQTRADE_GUIDE.md)
 - [STRATEGY_DEBUG_LAB.md](STRATEGY_DEBUG_LAB.md)
 - [ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md](ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md)

@@ -1,0 +1,3 @@
+{
+  "template": "📊 OpenClaw 山寨日报\n\n🕒 时间: {{generated_at}}\n🧠 策略: {{strategy_name}}\n🤖 模型: {{best_model_name}} | {{models_text}}\n💹 候选回测: {{candidate_backtest_text}}\n📌 审批: {{approval_text}}\n\n✅ 可交易:\n{{tradable_symbols}}\n\n👀 观察:\n{{observe_symbols_short}}\n\n⏸️ 暂停:\n{{pause_symbols_short}}"
+}

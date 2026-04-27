@@ -40,6 +40,8 @@ do {
     Start-Sleep -Seconds 5
     try {
         docker version | Out-Null
+        docker info | Out-Null
+        docker ps | Out-Null
         $dockerReady = $true
     }
     catch {
@@ -49,6 +51,23 @@ do {
 
 if (-not $dockerReady) {
     throw 'Docker Desktop did not become ready in time.'
+}
+
+$runDeadline = (Get-Date).AddMinutes(3)
+$dockerRunReady = $false
+do {
+    try {
+        docker run --rm --entrypoint python freqtradeorg/freqtrade:stable -c "print('docker_run_ready')" | Out-Null
+        $dockerRunReady = $true
+    }
+    catch {
+        Start-Sleep -Seconds 5
+        $dockerRunReady = $false
+    }
+} while (-not $dockerRunReady -and (Get-Date) -lt $runDeadline)
+
+if (-not $dockerRunReady) {
+    throw 'Docker can respond, but docker run did not become ready in time.'
 }
 
 powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-factor-daemon-stable.ps1')

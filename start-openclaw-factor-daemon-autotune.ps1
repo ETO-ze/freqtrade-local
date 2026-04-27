@@ -70,6 +70,7 @@ $process = Start-Process powershell `
         '-IntervalMinutes', '720',
         '-StartupDelaySeconds', '60',
         '-DaemonName', 'factor-daemon-autotune',
+        '-SharedRunLockName', 'openclaw-autotune-workflow.lock',
         '-WorkflowArguments', '-FreqtradeRoot|C:\Users\Administrator\Documents\Playground\freqtrade-local|-RuntimePolicyPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\model_runtime_policy.json|-BaseConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.alternativehunter.json|-OutputJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-autotune-latest.json|-OutputReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-autotune-latest.md|-ApprovedTuningPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\model_runtime_tuning.auto.json|-StrategyName|AlternativeHunter|-Timerange|20251201-20260318|-Trials|16|-MaxPairs|14|-StakeAmount|50|-MaxOpenTrades|5|-MinAcceptedProfitPct|10|-MinAcceptedProfitFactor|1.5|-MinAcceptedWinratePct|60|-MaxAcceptedDrawdownPct|12|-MinAcceptedTrades|240'
     ) `
     -WorkingDirectory $projectRoot `
