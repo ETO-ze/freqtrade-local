@@ -1,3 +1,9 @@
+param(
+    [int]$IntervalMinutes = 180,
+    [int]$StartupDelaySeconds = 0,
+    [switch]$ForceRestart
+)
+
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -38,7 +44,7 @@ $existingDaemon = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
 
 if ($existingDaemon) {
     $statusName = if ($statusData) { [string]$statusData.status } else { '' }
-    if ($statusName -in @('running', 'starting')) {
+    if ($statusName -in @('running', 'starting') -and -not $ForceRestart.IsPresent) {
         Write-Host "OpenClaw stable daemon process appears to be running already. PID: $($existingDaemon.ProcessId)" -ForegroundColor Yellow
         exit 0
     }
@@ -66,7 +72,7 @@ if ($existingPid) {
     $pidProcess = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
     if ($pidProcess) {
         $statusName = if ($statusData) { [string]$statusData.status } else { '' }
-        if ($statusName -in @('running', 'starting')) {
+        if ($statusName -in @('running', 'starting') -and -not $ForceRestart.IsPresent) {
             Write-Host "OpenClaw stable daemon PID file points to a live process already. PID: $existingPid" -ForegroundColor Yellow
             exit 0
         }
@@ -93,10 +99,11 @@ $process = Start-Process powershell `
         '-ExecutionPolicy', 'Bypass',
         '-File', $openClawScript,
         '-StateDir', $daemonReportDir,
-        '-IntervalMinutes', '180',
+        '-IntervalMinutes', "$IntervalMinutes",
+        '-StartupDelaySeconds', "$StartupDelaySeconds",
         '-DaemonName', 'factor-daemon-stable',
         '-SharedRunLockName', 'openclaw-ml-training.lock',
-        '-WorkflowArguments', '-CandidateConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-wide.json|-MarketDataRefreshEnabled|1|-MarketDataRefreshScriptPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\refresh_alt_market_data.ps1|-MarketDataRefreshDays|7|-DynamicUniverseEnabled|1|-DynamicUniverseScriptPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\build_dynamic_alt_universe.py|-DynamicUniverseOutputConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-dynamic.generated.json|-DynamicUniverseReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe.md|-DynamicUniverseJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe.json|-DynamicUniverseTopN|15|-MlModels|tree,rf,hgb,xgb|-MlDockerImage|freqtrade-local-ml-gpu:latest|-UseGpuForMl|1|-UseEvolution|0|-RobustScreenCacheTtlMinutes|180|-EvolutionOutputPrefix|/freqtrade/user_data/reports/ml/daily-alt-evolution-stable|-EvolutionPopulation|8|-EvolutionGenerations|3|-EvolutionElite|2|-EvolutionMutationRate|0.25|-AutoSyncMaxPairs|10|-AutoBacktestFreqtrade|1|-AutoBacktestTimerangeMode|auto|-AutoBacktestLookbackDays|108|-MlOutputPrefix|/freqtrade/user_data/reports/ml/daily-alt-tree-model-stable|-CombinedReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-stable.md|-CombinedJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-stable.json|-StrategyUpdateReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-strategy-update-stable.md|-BestModelJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-stable.json|-BestModelReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-stable.md|-AutoBacktestReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-stable.md|-AutoBacktestJsonReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-stable.json|-ApprovalReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-approval-stable.md|-CandidateTargetConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.openclaw-candidate-stable.json|-UpdateLatestAliases|1|-RemoteSyncServer|1|-RemoteSyncSettingsPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\server.openclaw-sync.local.json|-RemoteSyncRestartBot|if-running|-PublishDashboardPublicData|1|-DashboardPublicPublishScriptPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\publish_dashboard_public_data.py'
+        '-WorkflowArguments', '-CandidateConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-wide.json|-MarketDataRefreshEnabled|1|-MarketDataRefreshScriptPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\refresh_alt_market_data.ps1|-MarketDataRefreshDays|7|-DynamicUniverseEnabled|1|-DynamicUniverseScriptPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\build_dynamic_alt_universe.py|-DynamicUniverseOutputConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-dynamic.generated.json|-DynamicUniverseReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe.md|-DynamicUniverseJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe.json|-DynamicUniverseTopN|15|-DynamicUniverseMinHistoryDays|30|-DynamicUniverseMarketCapSource|coingecko|-DynamicUniverseMarketCapTopN|500|-DynamicUniverseMarketCapPages|2|-DynamicUniverseMinMarketCapUsd|30000000|-DynamicUniverseMinMarketVolumeUsd|300000|-DynamicUniverseMaxVolumeToMarketCapRatio|3.5|-DynamicUniverseRequireMarketCap|1|-MlModels|tree,rf,hgb,xgb|-MlDockerImage|freqtrade-local-ml-gpu:latest|-UseGpuForMl|1|-UseEvolution|0|-RobustScreenCacheTtlMinutes|180|-EvolutionOutputPrefix|/freqtrade/user_data/reports/ml/daily-alt-evolution-stable|-EvolutionPopulation|8|-EvolutionGenerations|3|-EvolutionElite|2|-EvolutionMutationRate|0.25|-AutoSyncMaxPairs|10|-AutoBacktestFreqtrade|1|-AutoBacktestTimerangeMode|auto|-AutoBacktestStartDateFloor|20250101|-AutoBacktestLookbackDays|520|-ExperimentalHighProfitBypass|1|-ExperimentalHighProfitPct|80|-ExperimentalMinProfitFactor|1.3|-ExperimentalMaxDrawdownPct|30|-ExperimentalMinWinratePct|60|-ExperimentalMinTrades|300|-MlOutputPrefix|/freqtrade/user_data/reports/ml/daily-alt-tree-model-stable|-CombinedReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-stable.md|-CombinedJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-stable.json|-StrategyUpdateReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-strategy-update-stable.md|-BestModelJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-stable.json|-BestModelReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-stable.md|-AutoBacktestReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-stable.md|-AutoBacktestJsonReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-stable.json|-ApprovalReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-approval-stable.md|-CandidateTargetConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.openclaw-candidate-stable.json|-UpdateLatestAliases|1|-RemoteSyncServer|1|-RemoteSyncSettingsPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\server.openclaw-sync.local.json|-RemoteSyncRestartBot|always|-PublishDashboardPublicData|1|-DashboardPublicPublishScriptPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\publish_dashboard_public_data.py'
     ) `
     -WorkingDirectory $projectRoot `
     -RedirectStandardOutput $stdoutPath `
@@ -123,8 +130,8 @@ if (-not $currentStatus -or [int]$currentStatus.pid -ne $process.Id -or [string]
         started_at            = $now
         completed_at          = $null
         status                = 'starting'
-        interval_minutes      = 180
-        startup_delay_seconds = 0
+        interval_minutes      = $IntervalMinutes
+        startup_delay_seconds = $StartupDelaySeconds
         workflow_script       = $openClawScript
         daemon_name           = 'factor-daemon-stable'
         next_run_after        = $null

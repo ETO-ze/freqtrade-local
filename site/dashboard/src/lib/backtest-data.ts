@@ -32,6 +32,35 @@ export interface BacktestPayload {
     decision: string
     thresholds: string
   }
+  approved_history?: Array<{
+    generated_at?: string
+    approval_mode?: string
+    model?: string
+    best_model?: string
+    strategy?: string
+    total_profit_pct?: number
+    profit_factor?: number
+    winrate?: number
+    winrate_pct?: number
+    max_drawdown_pct?: number
+    trade_count?: number
+    selected_pairs?: string[]
+    execution_target?: string
+  }> | {
+    generated_at?: string
+    approval_mode?: string
+    model?: string
+    best_model?: string
+    strategy?: string
+    total_profit_pct?: number
+    profit_factor?: number
+    winrate?: number
+    winrate_pct?: number
+    max_drawdown_pct?: number
+    trade_count?: number
+    selected_pairs?: string[]
+    execution_target?: string
+  }
 }
 
 export async function fetchBacktestData(): Promise<BacktestPayload> {

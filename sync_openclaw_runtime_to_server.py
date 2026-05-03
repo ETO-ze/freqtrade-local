@@ -1,4 +1,5 @@
 import argparse
+import base64
 import hashlib
 import json
 import posixpath
@@ -204,13 +205,11 @@ def upload_manifest(host: RemoteHost, manifest: list[dict[str, Any]]) -> list[di
 
 def restart_remote_bot(host: RemoteHost, mode: str) -> dict[str, Any]:
     bot_name = host.settings.bot_container_name
-    _, exists_out, _ = host.run(f"docker inspect {quote_single(bot_name)} >/dev/null 2>&1; echo $?", check=False)
-    exists = exists_out.strip() == "0"
-    if not exists:
+    state = get_remote_bot_state(host)
+    if not state["container_exists"]:
         return {"container_exists": False, "action": "skipped", "reason": "container not found"}
 
-    _, running_out, _ = host.run(f"docker inspect -f '{{{{.State.Running}}}}' {quote_single(bot_name)}", check=False)
-    running = running_out.strip().lower() == "true"
+    running = bool(state["running"])
     if mode == "never":
         return {"container_exists": True, "running_before": running, "action": "skipped", "reason": "restart disabled"}
     if mode == "if-running" and not running:
@@ -219,6 +218,161 @@ def restart_remote_bot(host: RemoteHost, mode: str) -> dict[str, Any]:
     action = "restart" if running else "start"
     host.run(f"docker {action} {quote_single(bot_name)}", timeout=180)
     return {"container_exists": True, "running_before": running, "action": action}
+
+
+def get_remote_bot_state(host: RemoteHost) -> dict[str, Any]:
+    bot_name = host.settings.bot_container_name
+    _, exists_out, _ = host.run(f"docker inspect {quote_single(bot_name)} >/dev/null 2>&1; echo $?", check=False)
+    exists = exists_out.strip() == "0"
+    if not exists:
+        return {"container_exists": False, "running": False}
+    _, running_out, _ = host.run(f"docker inspect -f '{{{{.State.Running}}}}' {quote_single(bot_name)}", check=False)
+    return {"container_exists": True, "running": running_out.strip().lower() == "true"}
+
+
+def api_status_url(remote_api_url: str) -> str:
+    if remote_api_url.endswith("/ping"):
+        return remote_api_url[: -len("/ping")] + "/status"
+    if remote_api_url.endswith("/api/v1"):
+        return remote_api_url + "/status"
+    return remote_api_url.rstrip("/") + "/status"
+
+
+def load_api_auth(local_config: dict[str, Any]) -> tuple[str, str]:
+    api_server = local_config.get("api_server") or {}
+    username = str(api_server.get("username") or "")
+    password = str(api_server.get("password") or "")
+    return username, password
+
+
+def check_remote_open_trades(host: RemoteHost, local_config: dict[str, Any]) -> dict[str, Any]:
+    username, password = load_api_auth(local_config)
+    if not username or not password:
+        return {"ok": False, "open_trade_count": None, "reason": "api credentials missing"}
+
+    token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    url = api_status_url(host.settings.remote_api_url)
+    script = f"""
+import json
+import urllib.error
+import urllib.request
+
+url = {url!r}
+headers = {{"Authorization": "Basic {token}", "Accept": "application/json"}}
+try:
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request, timeout=10) as response:
+        body = response.read().decode("utf-8", "ignore")
+    payload = json.loads(body or "[]")
+    if isinstance(payload, list):
+        trades = payload
+    elif isinstance(payload, dict):
+        trades = payload.get("trades") or payload.get("data") or payload.get("result") or []
+    else:
+        trades = []
+    open_trades = []
+    for trade in trades:
+        if not isinstance(trade, dict):
+            continue
+        if trade.get("is_open") is False:
+            continue
+        pair = str(trade.get("pair") or "")
+        open_trades.append(pair)
+    print(json.dumps({{
+        "ok": True,
+        "open_trade_count": len(open_trades),
+        "pairs": [pair for pair in open_trades if pair][:10],
+    }}, ensure_ascii=False))
+except Exception as exc:
+    print(json.dumps({{
+        "ok": False,
+        "open_trade_count": None,
+        "reason": str(exc),
+    }}, ensure_ascii=False))
+"""
+    code, out, err = host.run(f"python3 - <<'PY'\n{script}\nPY", timeout=30, check=False)
+    text = (out or err or "").strip()
+    try:
+        result = json.loads(text.splitlines()[-1])
+    except (json.JSONDecodeError, IndexError):
+        result = {"ok": False, "open_trade_count": None, "reason": text or f"remote command exit {code}"}
+    result["status_url"] = url
+    return result
+
+
+def restart_remote_bot_with_protection(
+    host: RemoteHost,
+    mode: str,
+    local_config: dict[str, Any],
+    protect_open_trades: bool,
+    force_restart_with_open_trades: bool,
+) -> dict[str, Any]:
+    if mode == "never":
+        return restart_remote_bot(host, mode)
+
+    bot_state = get_remote_bot_state(host)
+    if not bot_state["container_exists"]:
+        return {"container_exists": False, "action": "skipped", "reason": "container not found"}
+    if mode == "if-running" and not bot_state["running"]:
+        return {
+            "container_exists": True,
+            "running_before": False,
+            "action": "skipped",
+            "reason": "container not running",
+        }
+    if not bot_state["running"]:
+        result = restart_remote_bot(host, mode)
+        result["open_trade_protection"] = {
+            "enabled": bool(protect_open_trades),
+            "forced": bool(force_restart_with_open_trades),
+            "checked": False,
+            "reason": "container was stopped; start is allowed so Freqtrade can manage trades",
+        }
+        return result
+
+    if not protect_open_trades or force_restart_with_open_trades:
+        result = restart_remote_bot(host, mode)
+        result["open_trade_protection"] = {
+            "enabled": bool(protect_open_trades),
+            "forced": bool(force_restart_with_open_trades),
+            "checked": False,
+        }
+        return result
+
+    open_trade_check = check_remote_open_trades(host, local_config)
+    if not open_trade_check.get("ok"):
+        return {
+            "action": "skipped",
+            "reason": "open trade check failed; restart blocked by protection",
+            "open_trade_protection": {
+                "enabled": True,
+                "forced": False,
+                "checked": True,
+                "check": open_trade_check,
+            },
+        }
+
+    open_trade_count = int(open_trade_check.get("open_trade_count") or 0)
+    if open_trade_count > 0:
+        return {
+            "action": "skipped",
+            "reason": f"{open_trade_count} open trade(s) present; restart blocked by protection",
+            "open_trade_protection": {
+                "enabled": True,
+                "forced": False,
+                "checked": True,
+                "check": open_trade_check,
+            },
+        }
+
+    result = restart_remote_bot(host, mode)
+    result["open_trade_protection"] = {
+        "enabled": True,
+        "forced": False,
+        "checked": True,
+        "check": open_trade_check,
+    }
+    return result
 
 
 def wait_for_remote_api(host: RemoteHost, attempts: int = 30, delay_seconds: int = 2) -> dict[str, Any]:
@@ -281,6 +435,7 @@ def generate_report(
             "",
             f"- Action: {payload['restart'].get('action')}",
             f"- Reason: {payload['restart'].get('reason') or 'n/a'}",
+            f"- Open trade protection: {payload['restart'].get('open_trade_protection') or 'n/a'}",
             "",
             "## Validation",
             "",
@@ -332,6 +487,8 @@ def main() -> int:
     parser.add_argument("--report-md-path", default=None)
     parser.add_argument("--report-json-path", default=None)
     parser.add_argument("--restart-bot", choices=["if-running", "always", "never"], default="if-running")
+    parser.add_argument("--protect-open-trades", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--force-restart-with-open-trades", action="store_true")
     parser.add_argument("--mode", default="manual")
     args = parser.parse_args()
 
@@ -368,7 +525,13 @@ def main() -> int:
         backup_root = posixpath.join(settings.remote_dir, "sync_backups", timestamp)
         backup_remote_files(host, manifest, backup_root)
         uploaded_files = upload_manifest(host, manifest)
-        restart_result = restart_remote_bot(host, args.restart_bot)
+        restart_result = restart_remote_bot_with_protection(
+            host=host,
+            mode=args.restart_bot,
+            local_config=local_config,
+            protect_open_trades=bool(args.protect_open_trades),
+            force_restart_with_open_trades=bool(args.force_restart_with_open_trades),
+        )
         validation = wait_for_remote_api(host)
         public_sync_payload = build_public_sync_payload(
             generated_at=generated_at,

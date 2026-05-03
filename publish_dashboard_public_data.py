@@ -1,6 +1,7 @@
 import json
 import posixpath
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -13,13 +14,21 @@ REPORTS_ROOT = PROJECT_ROOT / "reports"
 DAEMON_ROOT = REPORTS_ROOT / "daemon"
 SETTINGS_PATH = PROJECT_ROOT / "server.openclaw-sync.local.json"
 REMOTE_PUBLIC_ROOT = "/www/wwwroot/duskrain.cn/dashboard-data"
+LOCAL_PUBLIC_ROOT = PROJECT_ROOT / "dashboard-data"
 
 
-def load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+def load_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
+    if not path.exists():
+        return default or {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError:
+        return default or {}
 
 
-def read_text(path: Path) -> str:
+def read_text(path: Path, default: str = "") -> str:
+    if not path.exists():
+        return default
     return path.read_text(encoding="utf-8-sig")
 
 
@@ -40,6 +49,7 @@ def build_backtest_payload() -> dict[str, Any]:
     sync_pairs = load_json(REPORTS_ROOT / "openclaw-freqtrade-sync-latest.json")
     feedback = load_json(REPORTS_ROOT / "openclaw-trade-feedback-policy-candidate.json")
     approval_md = read_text(REPORTS_ROOT / "openclaw-auto-approval-latest.md")
+    approved_history = load_json(REPORTS_ROOT / "openclaw-approved-history.json", default=[])
 
     feedback_pairs: list[dict[str, Any]] = []
     for pair, item in (feedback.get("pairs") or {}).items():
@@ -73,6 +83,7 @@ def build_backtest_payload() -> dict[str, Any]:
             "decision": parse_decision(approval_md),
             "thresholds": parse_thresholds(approval_md),
         },
+        "approved_history": approved_history if isinstance(approved_history, list) else [approved_history],
     }
 
 
@@ -181,33 +192,99 @@ def ensure_remote_dir(sftp: paramiko.SFTPClient, remote_dir: str) -> None:
             sftp.mkdir(part)
 
 
+def quote_single(value: str) -> str:
+    return "'" + value.replace("'", "'\"'\"'") + "'"
+
+
+def connect_ssh(settings: dict[str, Any], attempts: int = 4, delay_seconds: int = 8) -> paramiko.SSHClient:
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            client.connect(
+                hostname=str(settings["host"]),
+                port=int(settings.get("port") or 22),
+                username=str(settings["username"]),
+                password=str(settings["password"]),
+                timeout=90,
+                banner_timeout=90,
+                auth_timeout=90,
+                look_for_keys=False,
+                allow_agent=False,
+            )
+            return client
+        except Exception as exc:
+            last_error = exc
+            client.close()
+            if attempt < attempts:
+                print(f"SSH upload connection attempt {attempt} failed: {exc}. Retrying in {delay_seconds}s...")
+                time.sleep(delay_seconds)
+    raise RuntimeError(f"SSH upload connection failed after {attempts} attempts: {last_error}") from last_error
+
+
+def run_remote(client: paramiko.SSHClient, command: str, timeout: int = 60) -> None:
+    stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
+    out = stdout.read().decode("utf-8", "ignore")
+    err = stderr.read().decode("utf-8", "ignore")
+    code = stdout.channel.recv_exit_status()
+    if code != 0:
+        raise RuntimeError(f"Remote command failed ({code}): {out}\n{err}")
+
+
+def run_remote_with_stdin(client: paramiko.SSHClient, command: str, stdin_text: str, timeout: int = 120) -> None:
+    stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
+    stdin.write(stdin_text)
+    stdin.channel.shutdown_write()
+    out = stdout.read().decode("utf-8", "ignore")
+    err = stderr.read().decode("utf-8", "ignore")
+    code = stdout.channel.recv_exit_status()
+    if code != 0:
+        raise RuntimeError(f"Remote command failed ({code}): {out}\n{err}")
+
+
 def upload_payloads(settings: dict[str, Any], payloads: dict[str, dict[str, Any]]) -> None:
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        hostname=str(settings["host"]),
-        port=int(settings.get("port") or 22),
-        username=str(settings["username"]),
-        password=str(settings["password"]),
-        timeout=30,
-    )
-    sftp = client.open_sftp()
+    client = connect_ssh(settings)
     try:
-        ensure_remote_dir(sftp, REMOTE_PUBLIC_ROOT)
-        for name, payload in payloads.items():
-            remote_path = posixpath.join(REMOTE_PUBLIC_ROOT, f"{name}.json")
-            with sftp.open(remote_path, "w") as handle:
-                handle.write(json.dumps(payload, ensure_ascii=False, indent=2))
+        upload_bundle = {
+            "remote_root": REMOTE_PUBLIC_ROOT,
+            "files": {
+                f"{name}.json": payload for name, payload in payloads.items()
+            },
+        }
+        remote_script = (
+            "python3 -c \"import json, pathlib, sys; "
+            "bundle=json.load(sys.stdin); "
+            "root=pathlib.Path(bundle['remote_root']); root.mkdir(parents=True, exist_ok=True); "
+            "[root.joinpath(name).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8') "
+            "for name, payload in bundle['files'].items()]\""
+        )
+        run_remote_with_stdin(
+            client,
+            remote_script,
+            json.dumps(upload_bundle, ensure_ascii=False),
+            timeout=120,
+        )
     finally:
-        sftp.close()
         client.close()
+
+
+def write_local_payloads(payloads: dict[str, dict[str, Any]]) -> None:
+    LOCAL_PUBLIC_ROOT.mkdir(parents=True, exist_ok=True)
+    for name, payload in payloads.items():
+        (LOCAL_PUBLIC_ROOT / f"{name}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
 
 def main() -> int:
     settings = load_json(SETTINGS_PATH)
     backtest_payload = build_backtest_payload()
     alerts_payload = build_alerts_payload()
-    upload_payloads(settings, {"backtest": backtest_payload, "alerts": alerts_payload})
+    payloads = {"backtest": backtest_payload, "alerts": alerts_payload}
+    write_local_payloads(payloads)
+    upload_payloads(settings, payloads)
     print("Published dashboard public data: backtest.json, alerts.json")
     return 0
 
