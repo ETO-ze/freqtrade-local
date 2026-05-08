@@ -1,3 +1,3 @@
 @echo off
-cd /d "C:\Users\Administrator\Documents\Playground\freqtrade-local"
-py "C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-control-center-gui.py"
+cd /d "D:\Playground\freqtrade-local"
+py "D:\Playground\freqtrade-local\start-openclaw-control-center-gui.py"

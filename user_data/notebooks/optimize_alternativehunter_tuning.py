@@ -20,6 +20,9 @@ DEFAULT_TUNING = {
     "bias_block_threshold": 0.015,
     "recent_weight_block_threshold": 0.45,
     "minimum_side_multiplier": 0.1,
+    "leverage_boost": 1.45,
+    "leverage_cap_boost": 1.60,
+    "leverage_hard_cap": 8.0,
 }
 
 SEARCH_SPACE = {
@@ -32,6 +35,9 @@ SEARCH_SPACE = {
     "bias_block_threshold": [0.01, 0.012, 0.015, 0.018, 0.02],
     "recent_weight_block_threshold": [0.35, 0.4, 0.45, 0.5, 0.55],
     "minimum_side_multiplier": [0.05, 0.08, 0.1, 0.12, 0.15],
+    "leverage_boost": [1.0, 1.25, 1.45, 1.65, 1.85],
+    "leverage_cap_boost": [1.0, 1.25, 1.6, 1.9, 2.2],
+    "leverage_hard_cap": [5.0, 6.0, 8.0, 10.0],
 }
 
 
@@ -131,6 +137,19 @@ def candidate_tunings(base_tuning: dict, trials: int, seed: int) -> list[dict]:
     return candidates
 
 
+def is_transient_backtest_error(message: str) -> bool:
+    lowered = message.lower()
+    markers = [
+        "exchangenotavailable",
+        "temporaryerror",
+        "cannot connect to host",
+        "could not load markets",
+        "reload_markets",
+        "www.okx.com",
+    ]
+    return any(marker in lowered for marker in markers)
+
+
 def run_trial(
     freqtrade_root: Path,
     strategy_name: str,
@@ -174,16 +193,22 @@ def run_trial(
             "--export",
             "trades",
         ]
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=freqtrade_root,
-        )
-        if result.returncode != 0:
-            raise RuntimeError((result.stderr or result.stdout or "").strip())
+        last_error = ""
+        for attempt in range(1, 4):
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=freqtrade_root,
+            )
+            if result.returncode == 0:
+                break
+            last_error = (result.stderr or result.stdout or "").strip()
+            if attempt >= 3 or not is_transient_backtest_error(last_error):
+                raise RuntimeError(last_error)
+            time.sleep(5 * attempt)
 
         after = latest_backtest_zip(backtest_root)
         if not after or (before and after == before):
@@ -212,6 +237,16 @@ def main() -> None:
     parser.add_argument("--stake-amount", type=float, default=50.0)
     parser.add_argument("--max-open-trades", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--search-method", choices=["random", "perturb", "pso"], default="random")
+    parser.add_argument("--perturb-scale", type=float, default=0.18)
+    parser.add_argument("--pso-particles", type=int, default=4)
+    parser.add_argument("--pso-inertia", type=float, default=0.62)
+    parser.add_argument("--pso-cognitive", type=float, default=1.35)
+    parser.add_argument("--pso-social", type=float, default=1.35)
+    parser.add_argument("--prescreen-timerange", default="")
+    parser.add_argument("--prescreen-topk", type=int, default=0)
+    parser.add_argument("--shuffle-pairs", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--min-profit-pct", type=float, default=10.0)
     parser.add_argument("--min-profit-factor", type=float, default=1.5)
     parser.add_argument("--min-winrate-pct", type=float, default=60.0)

@@ -1,11 +1,12 @@
 [CmdletBinding()]
 param(
-    [string]$FreqtradeRoot = 'C:\Users\Administrator\Documents\Playground\freqtrade-local',
-    [string]$BaseConfigPath = 'C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-wide.json',
+    [string]$FreqtradeRoot = 'D:\Playground\freqtrade-local',
+    [string]$BaseConfigPath = 'D:\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-wide.json',
     [string]$DockerImage = 'freqtradeorg/freqtrade:stable',
     [int]$Days = 180,
     [string]$ExtraPairs = 'BTC/USDT:USDT,ETH/USDT:USDT',
-    [string]$Timeframes = '3m,5m,15m,1h,4h,1d'
+    [string]$Timeframes = '3m,5m,15m,1h,4h,1d',
+    [switch]$Prepend
 )
 
 $ErrorActionPreference = 'Stop'
@@ -40,20 +41,36 @@ $userDataDir = Join-Path $FreqtradeRoot 'user_data'
 
 Write-Host "[refresh-alt-market-data] Refreshing $($pairs.Count) pairs for $Days days." -ForegroundColor Cyan
 Write-Host "[refresh-alt-market-data] Timeframes: $($timeframesList -join ', ')" -ForegroundColor Cyan
+if ($Prepend) {
+    Write-Host "[refresh-alt-market-data] Prepend mode enabled for long-history backfill." -ForegroundColor Cyan
+}
 
-docker run --rm `
-    -v "${userDataDir}:/freqtrade/user_data" `
-    $DockerImage `
-    download-data `
-    --userdir /freqtrade/user_data `
-    --datadir /freqtrade/user_data/data/okx `
-    --exchange okx `
-    --trading-mode futures `
-    --pairs $pairs `
-    --days $Days `
-    --timeframes $timeframesList `
-    --data-format-ohlcv feather `
-    --candle-types futures mark funding_rate
+$downloadArgs = @(
+    'run', '--rm',
+    '-v', "${userDataDir}:/freqtrade/user_data",
+    $DockerImage,
+    'download-data',
+    '--userdir', '/freqtrade/user_data',
+    '--datadir', '/freqtrade/user_data/data/okx',
+    '--exchange', 'okx',
+    '--trading-mode', 'futures',
+    '--pairs'
+)
+$downloadArgs += $pairs
+$downloadArgs += @(
+    '--days', $Days,
+    '--timeframes'
+)
+$downloadArgs += $timeframesList
+$downloadArgs += @(
+    '--data-format-ohlcv', 'feather',
+    '--candle-types', 'futures', 'mark', 'funding_rate'
+)
+if ($Prepend) {
+    $downloadArgs += '--prepend'
+}
+
+& docker @downloadArgs
 
 if ($LASTEXITCODE -ne 0) {
     throw "freqtrade download-data failed with exit code $LASTEXITCODE"

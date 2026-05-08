@@ -105,7 +105,7 @@ do {
             Start-Process powershell -ArgumentList @('-ExecutionPolicy', 'Bypass', '-File', (Join-Path $root 'start-factor-lab.ps1'))
         }
         '8' {
-            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-auto-bot.ps1')
+            Write-Host 'Local OpenClaw bot startup is disabled. Use server sync/upload; cloud server is the execution target.' -ForegroundColor Yellow
             Pause-And-Return
         }
         '9' {
@@ -155,7 +155,7 @@ do {
             Start-Process powershell -ArgumentList @('-ExecutionPolicy', 'Bypass', '-Command', "py `"$root\start-openclaw-control-center-gui.py`"")
         }
         '18' {
-            powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-mainstream-auto-bot.ps1')
+            Write-Host 'Local mainstream bot startup is disabled. Use server-side execution only.' -ForegroundColor Yellow
             Pause-And-Return
         }
         '19' {

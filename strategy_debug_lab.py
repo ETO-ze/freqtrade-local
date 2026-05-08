@@ -38,6 +38,9 @@ DEFAULT_TUNING = {
     "bias_block_threshold": 0.015,
     "recent_weight_block_threshold": 0.45,
     "minimum_side_multiplier": 0.1,
+    "leverage_boost": 1.45,
+    "leverage_cap_boost": 1.60,
+    "leverage_hard_cap": 8.0,
 }
 
 
@@ -292,12 +295,15 @@ def render_policy_cards(frame: pd.DataFrame) -> None:
 
 def render_tuning_summary(tuning: dict) -> None:
     st.subheader("Tuning Summary")
-    cols = st.columns(5)
+    cols = st.columns(8)
     cols[0].metric("Stake Weight", tuning["stake_weight"])
     cols[1].metric("Leverage Weight", tuning["leverage_weight"])
-    cols[2].metric("Bias Threshold", tuning["bias_block_threshold"])
-    cols[3].metric("Recent Threshold", tuning["recent_weight_block_threshold"])
-    cols[4].metric("Opposite Penalty", tuning["opposite_side_penalty"])
+    cols[2].metric("Leverage Boost", tuning.get("leverage_boost", 1.0))
+    cols[3].metric("Cap Boost", tuning.get("leverage_cap_boost", 1.0))
+    cols[4].metric("Hard Cap", tuning.get("leverage_hard_cap", 5.0))
+    cols[5].metric("Bias Threshold", tuning["bias_block_threshold"])
+    cols[6].metric("Recent Threshold", tuning["recent_weight_block_threshold"])
+    cols[7].metric("Opposite Penalty", tuning["opposite_side_penalty"])
 
 
 def render_pair_scatter(frame: pd.DataFrame) -> None:
@@ -455,6 +461,9 @@ with st.sidebar:
     st.subheader("Tuning Weights")
     stake_weight = st.slider("Stake Weight", min_value=0.0, max_value=2.0, value=float(current_tuning["stake_weight"]), step=0.05)
     leverage_weight = st.slider("Leverage Weight", min_value=0.0, max_value=2.0, value=float(current_tuning["leverage_weight"]), step=0.05)
+    leverage_boost = st.slider("Leverage Boost", min_value=0.5, max_value=3.0, value=float(current_tuning["leverage_boost"]), step=0.05)
+    leverage_cap_boost = st.slider("Leverage Cap Boost", min_value=0.5, max_value=3.0, value=float(current_tuning["leverage_cap_boost"]), step=0.05)
+    leverage_hard_cap = st.slider("Leverage Hard Cap", min_value=1.0, max_value=10.0, value=float(current_tuning["leverage_hard_cap"]), step=0.5)
     same_side_recent_boost = st.slider("Same-side Recent Boost", min_value=0.0, max_value=1.5, value=float(current_tuning["same_side_recent_boost"]), step=0.05)
     same_side_bias_multiplier = st.slider("Same-side Bias Multiplier", min_value=0.0, max_value=8.0, value=float(current_tuning["same_side_bias_multiplier"]), step=0.1)
     opposite_side_penalty = st.slider("Opposite-side Penalty", min_value=0.0, max_value=1.0, value=float(current_tuning["opposite_side_penalty"]), step=0.05)
@@ -465,6 +474,9 @@ with st.sidebar:
     tuning = {
         "stake_weight": stake_weight,
         "leverage_weight": leverage_weight,
+        "leverage_boost": leverage_boost,
+        "leverage_cap_boost": leverage_cap_boost,
+        "leverage_hard_cap": leverage_hard_cap,
         "same_side_recent_boost": same_side_recent_boost,
         "same_side_bias_multiplier": same_side_bias_multiplier,
         "opposite_side_penalty": opposite_side_penalty,

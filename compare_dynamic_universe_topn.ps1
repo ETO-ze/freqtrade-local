@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$FreqtradeRoot = 'C:\Users\Administrator\Documents\Playground\freqtrade-local',
-    [string]$WorkflowScriptPath = 'C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-daily-ml-screen.ps1',
+    [string]$FreqtradeRoot = 'D:\Playground\freqtrade-local',
+    [string]$WorkflowScriptPath = 'D:\Playground\openclaw\scripts\freqtrade-daily-ml-screen.ps1',
     [object[]]$TopNs = @(12, 15, 18, 20),
     [string]$StrategyName = 'AlternativeHunter'
 )

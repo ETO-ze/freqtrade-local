@@ -13,13 +13,13 @@
 ## 启动
 
 ```powershell
-cd C:\Users\Administrator\Documents\Playground\freqtrade-local
-py -m streamlit run C:\Users\Administrator\Documents\Playground\freqtrade-local\telegram_template_lab.py --server.address 127.0.0.1 --server.port 8503
+cd D:\Playground\freqtrade-local
+py -m streamlit run D:\Playground\freqtrade-local\telegram_template_lab.py --server.address 127.0.0.1 --server.port 8503
 ```
 
 或双击：
 
-`C:\Users\Administrator\Documents\Playground\freqtrade-local\Launch Telegram Template Lab.cmd`
+`D:\Playground\freqtrade-local\Launch Telegram Template Lab.cmd`
 
 打开：
 
@@ -27,10 +27,10 @@ py -m streamlit run C:\Users\Administrator\Documents\Playground\freqtrade-local\
 
 ## 相关文件
 
-- 面板：`C:\Users\Administrator\Documents\Playground\freqtrade-local\telegram_template_lab.py`
-- 模板：`C:\Users\Administrator\Documents\Playground\freqtrade-local\telegram_message_template.json`
-- live Telegram 配置：`C:\Users\Administrator\Documents\Playground\freqtrade-local\openclaw.notification.json`
-- sim Telegram 配置：`C:\Users\Administrator\Documents\Playground\freqtrade-local\openclaw.notification.sim.json`
+- 面板：`D:\Playground\freqtrade-local\telegram_template_lab.py`
+- 模板：`D:\Playground\freqtrade-local\telegram_message_template.json`
+- live Telegram 配置：`D:\Playground\freqtrade-local\openclaw.notification.json`
+- sim Telegram 配置：`D:\Playground\freqtrade-local\openclaw.notification.sim.json`
 
 ## 模板占位符
 

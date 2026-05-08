@@ -1,3 +1,7 @@
+param(
+  [switch]$AllowLive
+)
+
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -6,6 +10,19 @@ $hostConfigPath = Join-Path $userData 'config.openclaw-auto.json'
 $configPath = '/freqtrade/user_data/config.openclaw-auto.json'
 $dbPath = 'sqlite:////freqtrade/user_data/tradesv3-openclaw-auto.sqlite'
 $logPath = '/freqtrade/user_data/logs/freqtrade-openclaw-auto.log'
+
+if (-not (Test-Path $hostConfigPath)) {
+  throw "Missing config: $hostConfigPath"
+}
+
+$configText = [System.IO.File]::ReadAllText($hostConfigPath)
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($hostConfigPath, $configText, $utf8NoBom)
+
+$hostConfig = Get-Content $hostConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($hostConfig.dry_run -eq $false -and -not $AllowLive) {
+  throw "Refusing to start local live bot without -AllowLive. The server bot is the live execution target."
+}
 
 try {
   docker rm -f freqtrade-openclaw-auto *> $null

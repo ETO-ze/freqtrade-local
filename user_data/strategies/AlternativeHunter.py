@@ -65,6 +65,28 @@ class AlternativeHunter(BlitzkriegHunterAltV53):
         except Exception:
             return default
 
+    def _env_or_tuned_float(
+        self,
+        key: str,
+        env_key: str,
+        default: float,
+        minimum: float | None = None,
+        maximum: float | None = None,
+    ) -> float:
+        raw_value = self._tuning().get(key)
+        if raw_value is None:
+            raw_value = os.getenv(env_key)
+        try:
+            value = float(raw_value) if raw_value is not None else float(default)
+        except Exception:
+            value = float(default)
+
+        if minimum is not None:
+            value = max(float(minimum), value)
+        if maximum is not None:
+            value = min(float(maximum), value)
+        return value
+
     def _load_runtime_policy(self) -> dict[str, Any]:
         path = self._policy_path()
         if not path.exists():
@@ -537,13 +559,17 @@ class AlternativeHunter(BlitzkriegHunterAltV53):
         leverage_cap = pair_policy.get(self.KEY_LEVERAGE_CAP)
         leverage_weight = self._tuned_float("leverage_weight", 1.0)
         multiplier = 1.0 + ((self._side_multiplier_from_policy(pair_policy, side) - 1.0) * leverage_weight)
+        leverage_boost = self._env_or_tuned_float("leverage_boost", "FT_ALT_LEVERAGE_BOOST", 1.0, 0.25, 3.0)
+        cap_boost = self._env_or_tuned_float("leverage_cap_boost", "FT_ALT_LEVERAGE_CAP_BOOST", 1.0, 0.25, 3.0)
+        hard_cap = self._env_or_tuned_float("leverage_hard_cap", "FT_ALT_LEVERAGE_HARD_CAP", float(max_leverage), 1.0, float(max_leverage))
 
-        adjusted = float(base) * multiplier
+        adjusted = float(base) * multiplier * leverage_boost
 
         try:
             if leverage_cap is None:
-                return min(adjusted, float(max_leverage))
-            return min(adjusted, float(leverage_cap), float(max_leverage))
+                return min(adjusted, hard_cap, float(max_leverage))
+            boosted_cap = float(leverage_cap) * cap_boost
+            return min(adjusted, boosted_cap, hard_cap, float(max_leverage))
         except Exception:
             return base
 

@@ -71,7 +71,7 @@ $process = Start-Process powershell `
         '-StartupDelaySeconds', '60',
         '-DaemonName', 'factor-daemon-autotune',
         '-SharedRunLockName', 'openclaw-autotune-workflow.lock',
-        '-WorkflowArguments', '-FreqtradeRoot|C:\Users\Administrator\Documents\Playground\freqtrade-local|-RuntimePolicyPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\model_runtime_policy.json|-BaseConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.alternativehunter.json|-OutputJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-autotune-latest.json|-OutputReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-autotune-latest.md|-ApprovedTuningPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\model_runtime_tuning.auto.json|-StrategyName|AlternativeHunter|-Timerange|20251201-20260318|-Trials|16|-MaxPairs|14|-StakeAmount|50|-MaxOpenTrades|5|-MinAcceptedProfitPct|10|-MinAcceptedProfitFactor|1.5|-MinAcceptedWinratePct|60|-MaxAcceptedDrawdownPct|12|-MinAcceptedTrades|240'
+        '-WorkflowArguments', '-FreqtradeRoot|D:\Playground\freqtrade-local|-RuntimePolicyPath|D:\Playground\freqtrade-local\user_data\model_runtime_policy.json|-BaseConfigPath|D:\Playground\freqtrade-local\user_data\config.backtest.alternativehunter.json|-OutputJsonPath|D:\Playground\freqtrade-local\reports\openclaw-autotune-latest.json|-OutputReportPath|D:\Playground\freqtrade-local\reports\openclaw-autotune-latest.md|-ApprovedTuningPath|D:\Playground\freqtrade-local\user_data\model_runtime_tuning.auto.json|-StrategyName|AlternativeHunter|-Timerange|20251201-20260318|-TimerangeMode|start-floor|-TimerangeStartDateFloor|20250101|-Trials|16|-MaxPairs|14|-StakeAmount|50|-MaxOpenTrades|5|-MinAcceptedProfitPct|10|-MinAcceptedProfitFactor|1.5|-MinAcceptedWinratePct|60|-MaxAcceptedDrawdownPct|12|-MinAcceptedTrades|240'
     ) `
     -WorkingDirectory $projectRoot `
     -RedirectStandardOutput $stdoutPath `
@@ -108,3 +108,4 @@ if (-not $currentStatus -or [int]$currentStatus.pid -ne $process.Id -or [string]
     $startingStatus | ConvertTo-Json -Depth 10 | Set-Content -Path $statusPath -Encoding UTF8
 }
 Write-Host "Started OpenClaw autotune daemon in background. PID=$($process.Id)" -ForegroundColor Cyan
+

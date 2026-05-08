@@ -1,3 +1,9 @@
+param(
+    [int]$IntervalMinutes = 60,
+    [int]$StartupDelaySeconds = 45,
+    [switch]$ForceRestart
+)
+
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -38,7 +44,7 @@ $existingDaemon = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
 
 if ($existingDaemon) {
     $statusName = if ($statusData) { [string]$statusData.status } else { '' }
-    if ($statusName -in @('running', 'starting')) {
+    if ($statusName -in @('running', 'starting') -and -not $ForceRestart.IsPresent) {
         Write-Host "OpenClaw fast daemon process appears to be running already. PID: $($existingDaemon.ProcessId)" -ForegroundColor Yellow
         exit 0
     }
@@ -66,7 +72,7 @@ if ($existingPid) {
     $pidProcess = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
     if ($pidProcess) {
         $statusName = if ($statusData) { [string]$statusData.status } else { '' }
-        if ($statusName -in @('running', 'starting')) {
+        if ($statusName -in @('running', 'starting') -and -not $ForceRestart.IsPresent) {
             Write-Host "OpenClaw fast daemon PID file points to a live process already. PID: $existingPid" -ForegroundColor Yellow
             exit 0
         }
@@ -93,11 +99,11 @@ $process = Start-Process powershell `
         '-ExecutionPolicy', 'Bypass',
         '-File', $openClawScript,
         '-StateDir', $daemonReportDir,
-        '-IntervalMinutes', '60',
-        '-StartupDelaySeconds', '45',
+        '-IntervalMinutes', "$IntervalMinutes",
+        '-StartupDelaySeconds', "$StartupDelaySeconds",
         '-DaemonName', 'factor-daemon-fast',
         '-SharedRunLockName', 'openclaw-ml-training.lock',
-        '-WorkflowArguments', '-CandidateConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-wide.json|-MarketDataRefreshEnabled|0|-DynamicUniverseEnabled|1|-DynamicUniverseScriptPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\build_dynamic_alt_universe.py|-DynamicUniverseOutputConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-dynamic.fast.generated.json|-DynamicUniverseReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe-fast.md|-DynamicUniverseJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe-fast.json|-DynamicUniverseTopN|20|-MlModels|rf|-RobustScreenCacheTtlMinutes|90|-AutoBacktestFreqtrade|0|-AutoBacktestTimerangeMode|auto|-AutoBacktestLookbackDays|108|-MlOutputPrefix|/freqtrade/user_data/reports/ml/daily-alt-tree-model-fast|-CombinedReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-fast.md|-CombinedJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-fast.json|-StrategyUpdateReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-strategy-update-fast.md|-BestModelJsonPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-fast.json|-BestModelReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-best-model-fast.md|-AutoBacktestReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-fast.md|-AutoBacktestJsonReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-fast.json|-ApprovalReportPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-approval-fast.md|-CandidateTargetConfigPath|C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.openclaw-candidate-fast.json|-UpdateLatestAliases|0'
+        '-WorkflowArguments', '-CandidateConfigPath|D:\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-wide.json|-MarketDataRefreshEnabled|0|-DynamicUniverseEnabled|1|-DynamicUniverseScriptPath|D:\Playground\freqtrade-local\build_dynamic_alt_universe.py|-DynamicUniverseOutputConfigPath|D:\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-dynamic.fast.generated.json|-DynamicUniverseReportPath|D:\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe-fast.md|-DynamicUniverseJsonPath|D:\Playground\freqtrade-local\reports\openclaw-dynamic-alt-universe-fast.json|-DynamicUniverseTopN|20|-DynamicUniverseMarketCapSource|coingecko|-DynamicUniverseMarketCapTopN|500|-DynamicUniverseMarketCapPages|2|-DynamicUniverseMinMarketCapUsd|30000000|-DynamicUniverseMinMarketVolumeUsd|300000|-DynamicUniverseMaxVolumeToMarketCapRatio|3.5|-MlModels|rf|-RobustScreenCacheTtlMinutes|90|-AutoBacktestFreqtrade|0|-AutoBacktestTimerangeMode|auto|-AutoBacktestLookbackDays|108|-MlOutputPrefix|/freqtrade/user_data/reports/ml/daily-alt-tree-model-fast|-CombinedReportPath|D:\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-fast.md|-CombinedJsonPath|D:\Playground\freqtrade-local\reports\openclaw-daily-alt-ml-fast.json|-StrategyUpdateReportPath|D:\Playground\freqtrade-local\reports\openclaw-strategy-update-fast.md|-BestModelJsonPath|D:\Playground\freqtrade-local\reports\openclaw-best-model-fast.json|-BestModelReportPath|D:\Playground\freqtrade-local\reports\openclaw-best-model-fast.md|-AutoBacktestReportPath|D:\Playground\freqtrade-local\reports\openclaw-auto-backtest-fast.md|-AutoBacktestJsonReportPath|D:\Playground\freqtrade-local\reports\openclaw-auto-backtest-fast.json|-ApprovalReportPath|D:\Playground\freqtrade-local\reports\openclaw-auto-approval-fast.md|-CandidateTargetConfigPath|D:\Playground\freqtrade-local\user_data\config.openclaw-candidate-fast.json|-UpdateLatestAliases|0'
     ) `
     -WorkingDirectory $projectRoot `
     -RedirectStandardOutput $stdoutPath `
@@ -124,8 +130,8 @@ if (-not $currentStatus -or [int]$currentStatus.pid -ne $process.Id -or [string]
         started_at            = $now
         completed_at          = $null
         status                = 'starting'
-        interval_minutes      = 60
-        startup_delay_seconds = 45
+        interval_minutes      = $IntervalMinutes
+        startup_delay_seconds = $StartupDelaySeconds
         workflow_script       = $openClawScript
         daemon_name           = 'factor-daemon-fast'
         next_run_after        = $null
@@ -136,3 +142,4 @@ if (-not $currentStatus -or [int]$currentStatus.pid -ne $process.Id -or [string]
 Write-Host "Started OpenClaw fast factor daemon in background. PID=$($process.Id)" -ForegroundColor Cyan
 Write-Host "Stdout: $stdoutPath" -ForegroundColor Cyan
 Write-Host "Stderr: $stderrPath" -ForegroundColor Cyan
+

@@ -1,10 +1,36 @@
 export interface BacktestPayload {
   generated_at: string
+  display_mode?: string
   strategy: string
   timerange: string
   latest_backtest: string
   metrics: Record<string, number | string>
   selected_pairs: string[]
+  active_factor?: {
+    generated_at?: string
+    strategy?: string
+    best_model?: string
+    approval_mode?: string
+    latest_backtest?: string
+    selected_pairs?: string[]
+    metrics?: Record<string, number | string>
+    top_factors?: Array<{
+      Feature: string
+      WeightedImportance: number
+    }>
+    source?: string
+  }
+  latest_candidate?: {
+    generated_at: string
+    strategy: string
+    timerange: string
+    latest_backtest: string
+    metrics: Record<string, number | string>
+    approval: {
+      decision: string
+      thresholds: string
+    }
+  }
   best_model: {
     model: string
     weight: number

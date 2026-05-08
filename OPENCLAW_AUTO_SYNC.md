@@ -4,10 +4,10 @@ This workflow lets OpenClaw train and screen altcoin factors locally, backtest t
 
 Files:
 
-- `C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-sync-screen-to-config.ps1`
-- `C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-backtest-openclaw-auto.ps1`
-- `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.openclaw-auto.json`
-- `C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-auto-bot.ps1`
+- `D:\Playground\openclaw\scripts\freqtrade-sync-screen-to-config.ps1`
+- `D:\Playground\openclaw\scripts\freqtrade-backtest-openclaw-auto.ps1`
+- `D:\Playground\freqtrade-local\user_data\config.openclaw-auto.json`
+- `D:\Playground\freqtrade-local\start-openclaw-auto-bot.ps1`
 
 Safe default behavior:
 
@@ -23,23 +23,23 @@ Safe default behavior:
 Run screening + sync:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-daily-ml-screen.ps1
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-sync-screen-to-config.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\openclaw\scripts\freqtrade-daily-ml-screen.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\openclaw\scripts\freqtrade-sync-screen-to-config.ps1
 ```
 
 Approval reports:
 
-- `C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-approval-latest.md`
-- `C:\Users\Administrator\Documents\Playground\freqtrade-local\reports\openclaw-auto-backtest-latest.json`
+- `D:\Playground\freqtrade-local\reports\openclaw-auto-approval-latest.md`
+- `D:\Playground\freqtrade-local\reports\openclaw-auto-backtest-latest.json`
 
 Run the generated auto-config backtest only:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-backtest-openclaw-auto.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\openclaw\scripts\freqtrade-backtest-openclaw-auto.ps1
 ```
 
 Start the separate bot:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
 ```

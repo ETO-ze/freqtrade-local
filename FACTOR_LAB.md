@@ -5,7 +5,7 @@
 启动：
 
 ```powershell
-cd C:\Users\Administrator\Documents\Playground\freqtrade-local
+cd D:\Playground\freqtrade-local
 powershell -ExecutionPolicy Bypass -File .\start-factor-lab.ps1
 ```
 

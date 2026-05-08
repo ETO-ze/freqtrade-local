@@ -30,13 +30,13 @@
 ## 启动
 
 ```powershell
-cd C:\Users\Administrator\Documents\Playground\freqtrade-local
-py -m streamlit run C:\Users\Administrator\Documents\Playground\freqtrade-local\strategy_debug_lab.py --server.address 127.0.0.1 --server.port 8502
+cd D:\Playground\freqtrade-local
+py -m streamlit run D:\Playground\freqtrade-local\strategy_debug_lab.py --server.address 127.0.0.1 --server.port 8502
 ```
 
 或双击：
 
-`C:\Users\Administrator\Documents\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd`
+`D:\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd`
 
 打开：
 
@@ -45,19 +45,19 @@ py -m streamlit run C:\Users\Administrator\Documents\Playground\freqtrade-local\
 ## 关键文件
 
 - 面板脚本：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\strategy_debug_lab.py`
+  - `D:\Playground\freqtrade-local\strategy_debug_lab.py`
 - 运行时策略：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\model_runtime_policy.json`
+  - `D:\Playground\freqtrade-local\user_data\model_runtime_policy.json`
 - 默认回测配置：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.alternativehunter.json`
+  - `D:\Playground\freqtrade-local\user_data\config.backtest.alternativehunter.json`
 - 临时回测配置：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.strategylab.json`
+  - `D:\Playground\freqtrade-local\user_data\config.backtest.strategylab.json`
 - 临时 debug policy：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\model_runtime_policy.debug.json`
+  - `D:\Playground\freqtrade-local\user_data\model_runtime_policy.debug.json`
 
 ## 说明
 
 - 这个面板不会改动 live bot 配置。
 - 它只生成独立的临时 backtest config 和 debug policy。
 - 回测结果仍然落在：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\backtest_results`
+  - `D:\Playground\freqtrade-local\user_data\backtest_results`

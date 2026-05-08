@@ -163,7 +163,19 @@ def approval_is_approved(approval_text: str | None) -> bool:
     if not approval_text:
         return False
     lowered = approval_text.lower()
-    return "approved for freqtrade auto update" in lowered
+    return (
+        "approved for freqtrade auto update" in lowered
+        or "experimental_high_profit" in lowered
+        or "experimental high-profit" in lowered
+    )
+
+
+def has_approved_history(history_data: list[dict] | dict | None) -> bool:
+    if not history_data:
+        return False
+    if isinstance(history_data, dict):
+        return bool(history_data)
+    return len(history_data) > 0
 
 
 def render_runtime_summary(summary: dict) -> None:
@@ -213,7 +225,8 @@ def render_approved_history(history_data: list[dict] | None) -> None:
             with subtitle_left:
                 st.caption(f"Model: {best_model}")
             with subtitle_right:
-                st.caption(f"Strategy: {row.get('strategy', 'N/A')}")
+                mode = row.get("approval_mode") or row.get("mode") or "standard"
+                st.caption(f"Strategy: {row.get('strategy', 'N/A')} | Mode: {mode}")
 
             metric_cols = st.columns(5)
             with metric_cols[0]:
@@ -575,7 +588,7 @@ runtime_summary = build_runtime_summary(
     autotune_status_data,
 )
 
-if approval_is_approved(approval_text):
+if approval_is_approved(approval_text) or has_approved_history(approved_history_data):
     render_metric_cards(backtest_data, daily_data, best_model_data)
 else:
     st.info("Latest candidate did not pass the promotion gate. Live configuration remains on the last approved factor set.")

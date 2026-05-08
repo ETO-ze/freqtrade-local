@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import threading
 import tkinter as tk
@@ -15,21 +16,25 @@ ROOT = Path(__file__).resolve().parent
 REPORT_ROOT = ROOT / "reports"
 DAEMON_ROOT = REPORT_ROOT / "daemon"
 ICON_PATH = ROOT / "assets" / "openclaw-freqtrade-icon.ico"
+ICON_PNG_PATH = ROOT / "assets" / "openclaw-freqtrade-icon.png"
 
 SERVER_SYNC_REPORT = REPORT_ROOT / "openclaw-server-sync-latest.json"
-SERVER_SYNC_REPORT_MD = REPORT_ROOT / "openclaw-server-sync-latest.md"
 SERVER_STATUS_REPORT = REPORT_ROOT / "openclaw-server-status-latest.json"
 SERVER_SYNC_SETTINGS = ROOT / "server.openclaw-sync.local.json"
 
+ACTIVE_CONFIG = ROOT / "user_data" / "config.openclaw-auto.json"
+RUNTIME_POLICY = ROOT / "user_data" / "model_runtime_policy.json"
+APPROVED_HISTORY = REPORT_ROOT / "openclaw-approved-history.json"
+LATEST_BACKTEST = REPORT_ROOT / "openclaw-auto-backtest-latest.json"
 STABLE_APPROVAL_MD = REPORT_ROOT / "openclaw-auto-approval-stable.md"
-README_EN = ROOT / "README.md"
-README_ZH = ROOT / "README.zh-CN.md"
-OVERVIEW_EN = ROOT / "PROJECT_OVERVIEW.md"
-OVERVIEW_ZH = ROOT / "PROJECT_OVERVIEW.zh-CN.md"
+MANUAL_PROMOTION_REPORT = REPORT_ROOT / "openclaw-manual-promotion-latest.md"
+ML_REPORT_DIR = ROOT / "user_data" / "reports" / "ml"
+
 GUIDE_PATH = ROOT / "OPENCLAW_FREQTRADE_GUIDE.md"
 TUNING_GUIDE_PATH = ROOT / "ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md"
 TELEGRAM_GUIDE_PATH = ROOT / "TELEGRAM_TEMPLATE_LAB.md"
-ML_REPORT_DIR = ROOT / "user_data" / "reports" / "ml"
+README_EN = ROOT / "README.md"
+README_ZH = ROOT / "README.zh-CN.md"
 
 DAEMONS = {
     "fast": {
@@ -59,23 +64,83 @@ DAEMONS = {
 }
 
 
-def load_json(path: Path) -> dict | None:
+def load_json(path: Path, default=None):
     if not path.exists():
-        return None
+        return {} if default is None else default
     try:
         text = path.read_text(encoding="utf-8-sig")
-        return json.loads(text) if text.strip() else None
+        return json.loads(text) if text.strip() else ({} if default is None else default)
     except Exception:
-        return None
+        return {} if default is None else default
 
 
-def preview_pairs(pairs: list[str], limit: int = 8) -> str:
+def short_pairs(pairs: list[str], limit: int = 8) -> str:
     symbols = [pair.split("/")[0] for pair in pairs if pair]
     if not symbols:
-        return "无数据"
+        return "none"
     if len(symbols) <= limit:
         return ", ".join(symbols)
     return f"{', '.join(symbols[:limit])} ... total {len(symbols)}"
+
+
+def fmt(value, suffix: str = "") -> str:
+    if value is None or value == "":
+        return "n/a"
+    return f"{value}{suffix}"
+
+
+def history_list() -> list[dict]:
+    raw = load_json(APPROVED_HISTORY, [])
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, dict)]
+    if isinstance(raw, dict):
+        value = raw.get("value")
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+        return [raw]
+    return []
+
+
+def active_factor() -> dict:
+    policy = load_json(RUNTIME_POLICY)
+    if isinstance(policy.get("active_approved_factor"), dict):
+        return policy["active_approved_factor"]
+    history = history_list()
+    if not history:
+        return {}
+    manual = MANUAL_PROMOTION_REPORT.read_text(encoding="utf-8-sig") if MANUAL_PROMOTION_REPORT.exists() else ""
+    approved_at = re.search(r"- Source approved at:\s*(.+)", manual)
+    backtest = re.search(r"- Backtest:\s*(.+)", manual)
+    approved_at_text = approved_at.group(1).strip() if approved_at else ""
+    backtest_text = backtest.group(1).strip() if backtest else ""
+    if approved_at_text or backtest_text:
+        for item in history:
+            if approved_at_text and str(item.get("generated_at") or "") == approved_at_text:
+                return item
+            if backtest_text and str(item.get("latest_backtest") or "") == backtest_text:
+                return item
+    active_config = load_json(ACTIVE_CONFIG)
+    active_pairs = set((active_config.get("exchange") or {}).get("pair_whitelist") or [])
+    if active_pairs:
+        ranked = []
+        for item in history:
+            overlap = len(active_pairs.intersection(set(item.get("selected_pairs") or [])))
+            profit = float(item.get("total_profit_pct") or 0)
+            ranked.append((overlap, profit, item))
+        ranked.sort(key=lambda row: (row[0], row[1]), reverse=True)
+        if ranked and ranked[0][0] > 0:
+            return ranked[0][2]
+    return max(history, key=lambda item: float(item.get("total_profit_pct") or 0))
+
+
+def manual_active_pairs() -> list[str]:
+    if not MANUAL_PROMOTION_REPORT.exists():
+        return []
+    text = MANUAL_PROMOTION_REPORT.read_text(encoding="utf-8-sig")
+    match = re.search(r"- Active pairs:\s*(.+)", text)
+    if not match:
+        return []
+    return [item.strip() for item in match.group(1).split(",") if item.strip()]
 
 
 def run_powershell(script_name: str, arguments: list[str] | None = None, timeout: int = 300) -> tuple[bool, str]:
@@ -105,29 +170,43 @@ class ControlCenter(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("OpenClaw + Freqtrade 总控中心")
-        self.geometry("1420x900")
-        self.minsize(1180, 760)
-        self.configure(bg="#eef5f8", padx=18, pady=16)
-
+        self.geometry("1480x920")
+        self.minsize(1200, 780)
+        self.configure(bg="#07111f")
         if ICON_PATH.exists():
             try:
                 self.iconbitmap(default=str(ICON_PATH))
             except Exception:
                 pass
+        if ICON_PNG_PATH.exists():
+            try:
+                self._icon_photo = tk.PhotoImage(file=str(ICON_PNG_PATH))
+                self.iconphoto(True, self._icon_photo)
+            except Exception:
+                pass
 
-        self._configure_style()
-        self.status_vars = {name: tk.StringVar(value="加载中...") for name in DAEMONS}
+        self.action_running = False
+        self.status_vars = {name: tk.StringVar(value="加载中") for name in DAEMONS}
         self.remote_vars = {
             "last_sync": tk.StringVar(value="未同步"),
-            "server_host": tk.StringVar(value="未配置"),
-            "bot_status": tk.StringVar(value="无数据"),
-            "remote_openclaw": tk.StringVar(value="无数据"),
+            "server": tk.StringVar(value="未配置"),
+            "bot": tk.StringVar(value="无数据"),
             "validation": tk.StringVar(value="无数据"),
-            "selected_pairs": tk.StringVar(value="无数据"),
+            "pairs": tk.StringVar(value="无数据"),
         }
-        self.action_running = False
-        self.current_action = ""
+        self.active_vars = {
+            "strategy": tk.StringVar(value="n/a"),
+            "model": tk.StringVar(value="n/a"),
+            "profit": tk.StringVar(value="n/a"),
+            "pf": tk.StringVar(value="n/a"),
+            "winrate": tk.StringVar(value="n/a"),
+            "drawdown": tk.StringVar(value="n/a"),
+            "trades": tk.StringVar(value="n/a"),
+            "pairs": tk.StringVar(value="n/a"),
+            "latest_candidate": tk.StringVar(value="n/a"),
+        }
 
+        self._configure_style()
         self._build()
         self.refresh_status()
         self.after(5000, self.auto_refresh_status)
@@ -138,229 +217,287 @@ class ControlCenter(tk.Tk):
             style.theme_use("clam")
         except tk.TclError:
             pass
+        bg = "#07111f"
+        panel = "#0c1a2f"
+        line = "#1d4460"
+        text = "#e9f6ff"
+        muted = "#8fb3c8"
+        accent = "#42d5ff"
 
-        bg = "#eef5f8"
-        panel = "#ffffff"
-        border = "#c9dce5"
-        text = "#102033"
-        muted = "#4d6273"
-        accent = "#1f8fb8"
-        accent_hover = "#176f91"
-
-        style.configure(".", font=("Microsoft YaHei UI", 10))
+        style.configure(".", font=("Microsoft YaHei UI", 10), background=bg, foreground=text)
         style.configure("TFrame", background=bg)
-        style.configure("TLabel", background=bg, foreground=text)
-        style.configure("Header.TFrame", background="#dff4f8")
-        style.configure("Title.TLabel", background="#dff4f8", foreground=text, font=("Microsoft YaHei UI", 20, "bold"))
-        style.configure("Subtitle.TLabel", background="#dff4f8", foreground=muted, font=("Microsoft YaHei UI", 10))
-        style.configure("TLabelframe", background=panel, bordercolor=border, relief="solid")
-        style.configure("TLabelframe.Label", background=bg, foreground=text, font=("Microsoft YaHei UI", 10, "bold"))
-        style.configure("Value.TLabel", background=panel, foreground=text)
-        style.configure("Key.TLabel", background=panel, foreground="#2c4558", font=("Microsoft YaHei UI", 10, "bold"))
-        style.configure("Status.TLabel", background=panel, foreground="#12384a")
-        style.configure("TButton", padding=(12, 7), borderwidth=1, relief="solid")
-        style.map("TButton", background=[("active", "#e5f7fb")])
-        style.configure("Accent.TButton", background=accent, foreground="white", bordercolor=accent, padding=(14, 8))
-        style.map("Accent.TButton", background=[("active", accent_hover)], foreground=[("active", "white")])
-        style.configure("Danger.TButton", background="#f3dddd", foreground="#8a1f1f", bordercolor="#e5b9b9")
+        style.configure("Card.TFrame", background=panel, relief="solid", borderwidth=1)
+        style.configure("Card.TLabelframe", background=panel, bordercolor=line, relief="solid")
+        style.configure(
+            "Card.TLabelframe.Label",
+            background=bg,
+            foreground=accent,
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.configure("Title.TLabel", background=bg, foreground=text, font=("Microsoft YaHei UI", 22, "bold"))
+        style.configure("Sub.TLabel", background=bg, foreground=muted)
+        style.configure("Kicker.TLabel", background=panel, foreground=accent, font=("Microsoft YaHei UI", 9, "bold"))
+        style.configure("CardTitle.TLabel", background=panel, foreground=text, font=("Microsoft YaHei UI", 13, "bold"))
+        style.configure("Value.TLabel", background=panel, foreground=text, font=("Microsoft YaHei UI", 12, "bold"))
+        style.configure("Muted.TLabel", background=panel, foreground=muted)
+        style.configure("TButton", padding=(12, 7), background="#10243d", foreground=text, bordercolor=line)
+        style.map("TButton", background=[("active", "#153250")], foreground=[("active", text)])
+        style.configure("Accent.TButton", background="#176f91", foreground="#ffffff", bordercolor="#42d5ff")
+        style.map("Accent.TButton", background=[("active", "#1f8fb8")])
+        style.configure("Danger.TButton", background="#3a1823", foreground="#ffd7de", bordercolor="#8f3447")
 
     def _build(self) -> None:
-        header = ttk.Frame(self, style="Header.TFrame")
-        header.pack(fill="x", pady=(0, 14))
-        ttk.Label(header, text="OpenClaw + Freqtrade 总控中心", style="Title.TLabel").pack(anchor="w", padx=16, pady=(14, 2))
+        outer = ttk.Frame(self)
+        outer.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(outer, bg="#07111f", highlightthickness=0, borderwidth=0)
+        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        root = ttk.Frame(canvas)
+        window_id = canvas.create_window((0, 0), window=root, anchor="nw")
+
+        def update_scroll_region(_event=None) -> None:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def update_window_width(event) -> None:
+            canvas.itemconfigure(window_id, width=event.width)
+
+        def on_mousewheel(event) -> None:
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        root.bind("<Configure>", update_scroll_region)
+        canvas.bind("<Configure>", update_window_width)
+        canvas.bind_all("<MouseWheel>", on_mousewheel)
+
+        content = ttk.Frame(root)
+        content.pack(fill="both", expand=True, padx=20, pady=18)
+
+        header = ttk.Frame(content)
+        header.pack(fill="x", pady=(0, 16))
+        ttk.Label(header, text="OpenClaw + Freqtrade 总控中心", style="Title.TLabel").pack(anchor="w")
         ttk.Label(
             header,
-            text="本地负责训练、筛选、回测与 promotion；服务器负责 Freqtrade 执行。加速模式会重启 fast/stable 并缩短训练间隔。",
-            style="Subtitle.TLabel",
-        ).pack(anchor="w", padx=16, pady=(0, 14))
+            text="本地负责训练、筛选、回测与 promotion；云端负责交易执行。此 GUI 只控制本地后台与同步链路。",
+            style="Sub.TLabel",
+        ).pack(anchor="w", pady=(4, 0))
 
-        self._build_daemon_status_frame()
-        self._build_remote_frame()
-        self._build_daemon_control_frame()
-        self._build_server_frame()
-        self._build_tools_frame()
-        self._build_docs_frame()
-        self._build_logs_frame()
-        self._build_output_frame()
+        self._build_active_area(content)
+        self._build_runtime_area(content)
+        self._build_controls(content)
+        self._build_tools(content)
+        self._build_output(content)
 
-    def _build_daemon_status_frame(self) -> None:
-        frame = ttk.LabelFrame(self, text="本地后台状态")
-        frame.pack(fill="x", pady=(0, 12))
-        for row, daemon_name in enumerate(("fast", "stable", "evolution", "autotune")):
-            ttk.Label(frame, text=DAEMONS[daemon_name]["title"], style="Key.TLabel", width=20).grid(row=row, column=0, sticky="w", padx=12, pady=7)
-            ttk.Label(frame, textvariable=self.status_vars[daemon_name], style="Status.TLabel", width=130).grid(row=row, column=1, sticky="w", padx=8, pady=7)
-        ttk.Button(frame, text="刷新", style="Accent.TButton", command=self.refresh_status).grid(row=0, column=2, rowspan=4, padx=12, pady=10, sticky="ns")
-        frame.columnconfigure(1, weight=1)
+    def card(self, parent, title: str, kicker: str = "") -> ttk.Frame:
+        label = f"{kicker} / {title}" if kicker else title
+        frame = ttk.LabelFrame(parent, text=label, style="Card.TLabelframe", padding=16)
+        return frame
 
-    def _build_remote_frame(self) -> None:
-        frame = ttk.LabelFrame(self, text="服务器同步状态")
-        frame.pack(fill="x", pady=(0, 12))
-        rows = [
-            ("最近同步/探测", "last_sync"),
-            ("服务器", "server_host"),
-            ("服务器 Bot", "bot_status"),
-            ("服务器 OpenClaw", "remote_openclaw"),
-            ("同步验证", "validation"),
-            ("当前已同步币对", "selected_pairs"),
-        ]
+    def metric(self, parent, label: str, variable: tk.StringVar, row: int, col: int) -> None:
+        box = ttk.Frame(parent, style="Card.TFrame", padding=10)
+        box.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
+        ttk.Label(box, text=label, style="Muted.TLabel").pack(anchor="w")
+        ttk.Label(box, textvariable=variable, style="Value.TLabel").pack(anchor="w", pady=(4, 0))
+
+    def _build_active_area(self, parent) -> None:
+        area = ttk.Frame(parent)
+        area.pack(fill="x", pady=(0, 14))
+        area.columnconfigure(0, weight=2)
+        area.columnconfigure(1, weight=1)
+
+        active = self.card(area, "正在使用的因子与回测", "ACTIVE FACTOR")
+        active.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        grid = ttk.Frame(active, style="Card.TFrame")
+        grid.pack(fill="x")
+        for index, (label, key) in enumerate(
+            [
+                ("策略", "strategy"),
+                ("模型", "model"),
+                ("收益", "profit"),
+                ("利润因子", "pf"),
+                ("胜率", "winrate"),
+                ("最大回撤", "drawdown"),
+                ("交易次数", "trades"),
+                ("当前币池", "pairs"),
+            ]
+        ):
+            self.metric(grid, label, self.active_vars[key], index // 4, index % 4)
+        for col in range(4):
+            grid.columnconfigure(col, weight=1)
+
+        candidate = self.card(area, "最新候选回测", "LATEST CANDIDATE")
+        candidate.grid(row=0, column=1, sticky="nsew")
+        ttk.Label(candidate, textvariable=self.active_vars["latest_candidate"], style="Value.TLabel", wraplength=360).pack(anchor="w")
+
+    def _build_runtime_area(self, parent) -> None:
+        area = ttk.Frame(parent)
+        area.pack(fill="x", pady=(0, 14))
+        area.columnconfigure(0, weight=1)
+        area.columnconfigure(1, weight=1)
+
+        local = self.card(area, "本地后台状态", "LOCAL DAEMONS")
+        local.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        for row, name in enumerate(("fast", "stable", "evolution", "autotune")):
+            ttk.Label(local, text=DAEMONS[name]["title"], style="Muted.TLabel", width=18).grid(row=row, column=0, sticky="w", pady=5)
+            ttk.Label(local, textvariable=self.status_vars[name], style="Value.TLabel").grid(row=row, column=1, sticky="w", pady=5)
+        local.columnconfigure(1, weight=1)
+
+        remote = self.card(area, "服务器连通状态", "SERVER")
+        remote.grid(row=0, column=1, sticky="nsew")
+        rows = [("最近同步", "last_sync"), ("服务器", "server"), ("云端 Bot", "bot"), ("验证", "validation"), ("已同步币对", "pairs")]
         for row, (label, key) in enumerate(rows):
-            ttk.Label(frame, text=label, style="Key.TLabel", width=20).grid(row=row, column=0, sticky="w", padx=12, pady=5)
-            ttk.Label(frame, textvariable=self.remote_vars[key], style="Value.TLabel", width=130).grid(row=row, column=1, sticky="w", padx=8, pady=5)
-        ttk.Button(frame, text="刷新", style="Accent.TButton", command=self.refresh_status).grid(row=0, column=2, rowspan=6, padx=12, pady=10, sticky="ns")
-        frame.columnconfigure(1, weight=1)
+            ttk.Label(remote, text=label, style="Muted.TLabel", width=14).grid(row=row, column=0, sticky="w", pady=5)
+            ttk.Label(remote, textvariable=self.remote_vars[key], style="Value.TLabel").grid(row=row, column=1, sticky="w", pady=5)
+        remote.columnconfigure(1, weight=1)
 
-    def _build_daemon_control_frame(self) -> None:
-        frame = ttk.LabelFrame(self, text="本地后台控制")
-        frame.pack(fill="x", pady=(0, 12))
-
+    def _build_controls(self, parent) -> None:
+        frame = self.card(parent, "本地后台控制", "CONTROL")
+        frame.pack(fill="x", pady=(0, 14))
         buttons = [
-            ("启动 Fast", "fast", "start", None),
+            ("启动 Fast", "fast", "start", "TButton"),
             ("停止 Fast", "fast", "stop", "Danger.TButton"),
-            ("启动 Stable", "stable", "start", None),
+            ("启动 Stable", "stable", "start", "TButton"),
             ("停止 Stable", "stable", "stop", "Danger.TButton"),
-            ("启动 Evolution", "evolution", "start", None),
+            ("启动 Evolution", "evolution", "start", "TButton"),
             ("停止 Evolution", "evolution", "stop", "Danger.TButton"),
-            ("启动 Autotune", "autotune", "start", None),
+            ("启动 Autotune", "autotune", "start", "TButton"),
             ("停止 Autotune", "autotune", "stop", "Danger.TButton"),
         ]
-        for index, (label, daemon_name, action, style_name) in enumerate(buttons):
-            row, col = divmod(index, 4)
-            script_name = DAEMONS[daemon_name][action]
+        for i, (label, daemon, action, style) in enumerate(buttons):
             ttk.Button(
                 frame,
                 text=label,
-                style=style_name or "TButton",
-                command=lambda s=script_name, d=label: self.run_and_report(s, label=d),
-            ).grid(row=row, column=col, padx=10, pady=8, sticky="w")
-
-        ttk.Separator(frame).grid(row=2, column=0, columnspan=4, sticky="ew", padx=10, pady=(8, 4))
+                style=style,
+                command=lambda d=daemon, a=action, l=label: self.run_and_report(DAEMONS[d][a], label=l),
+            ).grid(row=i // 4, column=i % 4, padx=6, pady=6, sticky="w")
         ttk.Button(
             frame,
-            text="开启训练加速模式（Fast 20m / Stable 90m）",
+            text="开启训练加速",
             style="Accent.TButton",
-            command=lambda: self.run_and_report("set-openclaw-training-speed.ps1", ["-Mode", "boost"], label="开启训练加速模式"),
-        ).grid(row=3, column=0, columnspan=2, padx=10, pady=8, sticky="w")
+            command=lambda: self.run_and_report("set-openclaw-training-speed.ps1", ["-Mode", "boost"], "开启训练加速"),
+        ).grid(row=2, column=0, padx=6, pady=(12, 6), sticky="w")
         ttk.Button(
             frame,
-            text="恢复常规训练频率（Fast 60m / Stable 180m）",
-            command=lambda: self.run_and_report("set-openclaw-training-speed.ps1", ["-Mode", "normal"], label="恢复常规训练频率"),
-        ).grid(row=3, column=2, columnspan=2, padx=10, pady=8, sticky="w")
+            text="恢复常规频率",
+            command=lambda: self.run_and_report("set-openclaw-training-speed.ps1", ["-Mode", "normal"], "恢复常规频率"),
+        ).grid(row=2, column=1, padx=6, pady=(12, 6), sticky="w")
+        ttk.Button(frame, text="刷新状态", style="Accent.TButton", command=self.refresh_status).grid(row=2, column=2, padx=6, pady=(12, 6), sticky="w")
+        for col in range(4):
+            frame.columnconfigure(col, weight=1)
 
-    def _build_server_frame(self) -> None:
-        frame = ttk.LabelFrame(self, text="服务器联通与同步")
-        frame.pack(fill="x", pady=(0, 12))
+    def _build_tools(self, parent) -> None:
+        frame = self.card(parent, "面板、服务器与文档", "TOOLS")
+        frame.pack(fill="x", pady=(0, 14))
         buttons = [
-            ("上传已审批因子到服务器", self.sync_to_server),
-            ("打开同步报告", lambda: self.open_path(SERVER_SYNC_REPORT_MD)),
-            ("打开同步 JSON", lambda: self.open_path(SERVER_SYNC_REPORT)),
-            ("只读探测服务器", self.probe_server_status),
-            ("打开服务器交易台", lambda: webbrowser.open("https://www.duskrain.cn/")),
-            ("打开服务器 API Ping", lambda: webbrowser.open("https://www.duskrain.cn/api/v1/ping")),
-            ("打开认证门户", lambda: webbrowser.open("https://duskrain.cn/authelia/")),
-        ]
-        for index, (label, callback) in enumerate(buttons):
-            row, col = divmod(index, 4)
-            ttk.Button(frame, text=label, command=callback).grid(row=row, column=col, padx=10, pady=8, sticky="w")
-
-    def _build_tools_frame(self) -> None:
-        frame = ttk.LabelFrame(self, text="面板与机器人")
-        frame.pack(fill="x", pady=(0, 12))
-        buttons = [
-            ("启动只读看板", lambda: self.start_streamlit("factor_lab.py", 8501)),
-            ("打开看板 (8501)", lambda: webbrowser.open("http://127.0.0.1:8501")),
-            ("启动策略调试面板", lambda: self.start_streamlit("strategy_debug_lab.py", 8502)),
-            ("打开调试面板 (8502)", lambda: webbrowser.open("http://127.0.0.1:8502")),
-            ("启动 Telegram 模板面板", lambda: self.start_streamlit("telegram_template_lab.py", 8503)),
-            ("打开 Telegram 模板 (8503)", lambda: webbrowser.open("http://127.0.0.1:8503")),
-            ("测试山寨 Bot 启动保护", lambda: self.run_and_report("start-openclaw-auto-bot.ps1", label="测试山寨 Bot 启动保护")),
-            ("打开山寨 API (8081)", lambda: webbrowser.open("http://127.0.0.1:8081")),
-            ("启动主流 Bot", lambda: self.run_and_report("start-mainstream-auto-bot.ps1", label="启动主流 Bot")),
-            ("打开主流 API (8082)", lambda: webbrowser.open("http://127.0.0.1:8082")),
+            ("启动网页看板", lambda: self.start_streamlit("factor_lab.py", 8501)),
+            ("打开网页看板", lambda: webbrowser.open("http://127.0.0.1:8501")),
+            ("启动策略调试", lambda: self.start_streamlit("strategy_debug_lab.py", 8502)),
+            ("打开策略调试", lambda: webbrowser.open("http://127.0.0.1:8502")),
+            ("启动 Telegram 模板", lambda: self.start_streamlit("telegram_template_lab.py", 8503)),
+            ("打开 Telegram 模板", lambda: webbrowser.open("http://127.0.0.1:8503")),
+            ("探测服务器", self.probe_server_status),
+            ("同步到服务器", self.sync_to_server),
+            ("打开本地 API", lambda: webbrowser.open("http://127.0.0.1:8081")),
+            ("打开云端入口", lambda: webbrowser.open("https://duskrain.cn/")),
             ("打开报告目录", lambda: subprocess.Popen(["explorer", str(REPORT_ROOT)])),
             ("打开历史 ML 报告", lambda: subprocess.Popen(["explorer", str(ML_REPORT_DIR)])),
-            ("打开项目说明", lambda: self.open_path(GUIDE_PATH)),
-            ("打开参数说明", lambda: self.open_path(TUNING_GUIDE_PATH)),
-            ("打开 Telegram 说明", lambda: self.open_path(TELEGRAM_GUIDE_PATH)),
-            ("打开 Stable 审批", lambda: self.open_path(STABLE_APPROVAL_MD)),
+            ("Stable 审批", lambda: self.open_path(STABLE_APPROVAL_MD)),
+            ("项目说明", lambda: self.open_path(GUIDE_PATH)),
+            ("参数说明", lambda: self.open_path(TUNING_GUIDE_PATH)),
+            ("README 中文", lambda: self.open_path(README_ZH)),
+            ("README EN", lambda: self.open_path(README_EN)),
         ]
-        for index, (label, callback) in enumerate(buttons):
-            row, col = divmod(index, 4)
-            ttk.Button(frame, text=label, command=callback).grid(row=row, column=col, padx=10, pady=8, sticky="w")
+        for i, (label, callback) in enumerate(buttons):
+            ttk.Button(frame, text=label, command=callback).grid(row=i // 5, column=i % 5, padx=6, pady=6, sticky="w")
+        github_index = len(buttons)
+        ttk.Button(frame, text="一键同步 GitHub", style="Accent.TButton", command=self.sync_to_github).grid(
+            row=github_index // 5,
+            column=github_index % 5,
+            padx=6,
+            pady=6,
+            sticky="w",
+        )
+        for col in range(5):
+            frame.columnconfigure(col, weight=1)
 
-    def _build_docs_frame(self) -> None:
-        frame = ttk.LabelFrame(self, text="公开文档")
-        frame.pack(fill="x", pady=(0, 12))
-        buttons = [
-            ("README (EN)", lambda: self.open_path(README_EN)),
-            ("README (中文)", lambda: self.open_path(README_ZH)),
-            ("Overview (EN)", lambda: self.open_path(OVERVIEW_EN)),
-            ("Overview (中文)", lambda: self.open_path(OVERVIEW_ZH)),
-        ]
-        for index, (label, callback) in enumerate(buttons):
-            ttk.Button(frame, text=label, command=callback).grid(row=0, column=index, padx=10, pady=8, sticky="w")
-
-    def _build_logs_frame(self) -> None:
-        frame = ttk.LabelFrame(self, text="日志")
-        frame.pack(fill="x", pady=(0, 12))
-        buttons = [
-            ("Fast 日志", "factor-daemon-fast.out.log"),
-            ("Stable 日志", "factor-daemon-stable.out.log"),
-            ("Evolution 日志", "factor-daemon-evolution.out.log"),
-            ("Autotune 日志", "factor-daemon-autotune.out.log"),
-            ("长历史回补日志", "data-refresh/long-history-backfill.out.log"),
-        ]
-        for col, (label, filename) in enumerate(buttons):
-            ttk.Button(frame, text=label, command=lambda f=filename: self.open_log(f)).grid(row=0, column=col, padx=10, pady=8, sticky="w")
-
-    def _build_output_frame(self) -> None:
-        frame = ttk.LabelFrame(self, text="最近操作")
+    def _build_output(self, parent) -> None:
+        frame = self.card(parent, "最近操作", "OUTPUT")
         frame.pack(fill="both", expand=True)
         self.output = tk.Text(
             frame,
-            height=10,
-            wrap="word",
-            bg="#0f172a",
+            height=8,
+            bg="#050b14",
             fg="#dbeafe",
             insertbackground="#dbeafe",
             relief="flat",
             padx=12,
             pady=10,
+            wrap="word",
             font=("Consolas", 10),
         )
-        self.output.pack(fill="both", expand=True, padx=10, pady=10)
-        self.output.insert("1.0", "已就绪。\n")
-        self.output.configure(state="disabled")
+        self.output.pack(fill="both", expand=True)
+        self.set_output("就绪。")
 
     def refresh_status(self) -> None:
         for name in self.status_vars:
             self.status_vars[name].set(daemon_summary(f"factor-daemon-{name}"))
+        self.refresh_active_factor()
         self.refresh_remote_status()
+
+    def refresh_active_factor(self) -> None:
+        config = load_json(ACTIVE_CONFIG)
+        factor = active_factor()
+        latest = load_json(LATEST_BACKTEST)
+        metrics = {
+            "total_profit_pct": factor.get("total_profit_pct"),
+            "profit_factor": factor.get("profit_factor"),
+            "winrate": factor.get("winrate") or factor.get("winrate_pct"),
+            "max_drawdown_pct": factor.get("max_drawdown_pct"),
+            "trade_count": factor.get("trade_count"),
+        }
+        pairs = manual_active_pairs() or (config.get("exchange") or {}).get("pair_whitelist") or factor.get("selected_pairs") or []
+        self.active_vars["strategy"].set(config.get("strategy") or factor.get("strategy") or "n/a")
+        self.active_vars["model"].set(factor.get("best_model") or factor.get("model") or "n/a")
+        self.active_vars["profit"].set(fmt(metrics["total_profit_pct"], "%"))
+        self.active_vars["pf"].set(fmt(metrics["profit_factor"]))
+        self.active_vars["winrate"].set(fmt(metrics["winrate"], "%"))
+        self.active_vars["drawdown"].set(fmt(metrics["max_drawdown_pct"], "%"))
+        self.active_vars["trades"].set(fmt(metrics["trade_count"]))
+        self.active_vars["pairs"].set(short_pairs(pairs, 10))
+
+        latest_metrics = latest.get("metrics") or {}
+        self.active_vars["latest_candidate"].set(
+            "收益 {profit}% | PF {pf} | 回撤 {dd}% | 交易 {trades}\n结果包：{zip}".format(
+                profit=latest_metrics.get("total_profit_pct", "n/a"),
+                pf=latest_metrics.get("profit_factor", "n/a"),
+                dd=latest_metrics.get("max_drawdown_pct", "n/a"),
+                trades=latest_metrics.get("trade_count", "n/a"),
+                zip=latest.get("latest_backtest", "n/a"),
+            )
+        )
 
     def refresh_remote_status(self) -> None:
         data = load_json(SERVER_SYNC_REPORT) or load_json(SERVER_STATUS_REPORT)
         if not data:
             self.remote_vars["last_sync"].set("未同步")
-            self.remote_vars["server_host"].set("已配置，暂无报告" if SERVER_SYNC_SETTINGS.exists() else "未配置")
+            self.remote_vars["server"].set("已配置，暂无报告" if SERVER_SYNC_SETTINGS.exists() else "未配置")
+            self.remote_vars["bot"].set("无数据")
             self.remote_vars["validation"].set("无数据")
-            self.remote_vars["bot_status"].set("无数据")
-            self.remote_vars["remote_openclaw"].set("无数据")
-            self.remote_vars["selected_pairs"].set("无数据")
+            self.remote_vars["pairs"].set("无数据")
             return
 
-        generated_at = str(data.get("generated_at") or "未知")
         remote = data.get("remote") or {}
         validation = data.get("validation") or {}
         after = data.get("remote_status_after") or data.get("remote_status_before") or {}
-        before = data.get("remote_status_before") or after
         source = data.get("source") or {}
-        selected_pairs = source.get("selected_pairs") or []
-
-        self.remote_vars["last_sync"].set(f"{generated_at} | mode={data.get('mode', 'n/a')}")
-        self.remote_vars["server_host"].set(f"{remote.get('host', 'unknown')} | dir={remote.get('remote_dir', 'n/a')}")
-        self.remote_vars["bot_status"].set(f"{after.get('bot_status', 'n/a')} | running={after.get('bot_running', 'n/a')}")
-        self.remote_vars["remote_openclaw"].set(str(bool(str(before.get("openclaw_processes", "")).strip())))
+        self.remote_vars["last_sync"].set(f"{data.get('generated_at', 'n/a')} | {data.get('mode', 'n/a')}")
+        self.remote_vars["server"].set(f"{remote.get('host', 'unknown')} | {remote.get('remote_dir', 'n/a')}")
+        self.remote_vars["bot"].set(f"{after.get('bot_status', 'n/a')} | running={after.get('bot_running', 'n/a')}")
         self.remote_vars["validation"].set(f"HTTP {validation.get('http_code', 'n/a')} | healthy={validation.get('ok', False)}")
-        self.remote_vars["selected_pairs"].set(preview_pairs(selected_pairs, limit=8))
+        self.remote_vars["pairs"].set(short_pairs(source.get("selected_pairs") or [], 8))
 
     def auto_refresh_status(self) -> None:
         self.refresh_status()
@@ -372,25 +509,26 @@ class ControlCenter(tk.Tk):
         self.output.insert("1.0", text.strip() + "\n")
         self.output.configure(state="disabled")
 
-    def run_and_report(self, script_name: str, arguments: list[str] | None = None, label: str | None = None) -> None:
+    def run_and_report(
+        self,
+        script_name: str,
+        arguments: list[str] | None = None,
+        label: str | None = None,
+        timeout: int = 300,
+    ) -> None:
         if self.action_running:
-            self.set_output("已有操作在执行，请等待当前命令完成。")
+            self.set_output("已有操作正在执行，请等待当前命令完成。")
             return
-
-        display_name = label or script_name
         self.action_running = True
-        self.current_action = display_name
-        self.set_output(f"正在执行 {display_name} ...")
+        self.set_output(f"正在执行：{label or script_name} ...")
 
         def worker() -> None:
-            ok, output = run_powershell(script_name, arguments)
+            ok, output = run_powershell(script_name, arguments, timeout=timeout)
 
             def finish() -> None:
                 self.action_running = False
-                self.current_action = ""
                 self.set_output(output or ("执行完成。" if ok else "执行失败。"))
                 self.refresh_status()
-                self.after(1500, self.refresh_status)
                 if not ok:
                     messagebox.showwarning("OpenClaw 总控中心", output or "命令执行失败。")
 
@@ -432,22 +570,33 @@ class ControlCenter(tk.Tk):
                 "-SettingsPath",
                 str(SERVER_SYNC_SETTINGS),
                 "-SourceConfigPath",
-                str(ROOT / "user_data" / "config.openclaw-auto.json"),
+                str(ACTIVE_CONFIG),
                 "-RestartBot",
                 "always",
                 "-Mode",
                 "manual-gui",
             ],
-            label="上传已审批因子到服务器",
+            label="同步当前 active 配置到服务器",
+        )
+
+    def sync_to_github(self) -> None:
+        self.run_and_report(
+            "sync-github-safe.ps1",
+            [
+                "-ProjectRoot",
+                str(ROOT),
+                "-Message",
+                "chore: sync OpenClaw local updates",
+            ],
+            label="一键同步 GitHub",
+            timeout=300,
         )
 
     def probe_server_status(self) -> None:
         if self.action_running:
-            self.set_output("已有操作在执行，请等待当前命令完成。")
+            self.set_output("已有操作正在执行，请等待当前命令完成。")
             return
-
         self.action_running = True
-        self.current_action = "只读探测服务器"
         self.set_output("正在只读探测服务器状态...")
 
         def worker() -> None:
@@ -469,7 +618,6 @@ class ControlCenter(tk.Tk):
 
             def finish() -> None:
                 self.action_running = False
-                self.current_action = ""
                 self.set_output(output or ("探测完成。" if ok else "探测失败。"))
                 self.refresh_status()
                 if not ok:
@@ -478,13 +626,6 @@ class ControlCenter(tk.Tk):
             self.after(0, finish)
 
         threading.Thread(target=worker, daemon=True).start()
-
-    def open_log(self, file_name: str) -> None:
-        path = DAEMON_ROOT / file_name
-        if not path.exists():
-            messagebox.showinfo("OpenClaw 总控中心", f"未找到日志文件：\n{path}")
-            return
-        subprocess.Popen(["notepad", str(path)])
 
     def open_path(self, path: Path) -> None:
         if not path.exists():

@@ -9,25 +9,25 @@ Suggested split:
 
 Current entry points:
 
-- Strategy: `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\strategies\BlitzkriegHunterAltV41.py`
-- Config: `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-v41.json`
-- OpenClaw helper: `C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-alt-screen.ps1`
-- Robust screener: `C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-robust-screen.ps1`
-- Daily ML screener: `C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-daily-ml-screen.ps1`
-- Telegram config: `C:\Users\Administrator\Documents\Playground\freqtrade-local\openclaw.notification.json`
+- Strategy: `D:\Playground\freqtrade-local\user_data\strategies\BlitzkriegHunterAltV41.py`
+- Config: `D:\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-v41.json`
+- OpenClaw helper: `D:\Playground\openclaw\scripts\freqtrade-alt-screen.ps1`
+- Robust screener: `D:\Playground\openclaw\scripts\freqtrade-robust-screen.ps1`
+- Daily ML screener: `D:\Playground\openclaw\scripts\freqtrade-daily-ml-screen.ps1`
+- Telegram config: `D:\Playground\freqtrade-local\openclaw.notification.json`
 
 Example local command:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-alt-screen.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\openclaw\scripts\freqtrade-alt-screen.ps1
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-robust-screen.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\openclaw\scripts\freqtrade-robust-screen.ps1
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\openclaw\scripts\freqtrade-daily-ml-screen.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\openclaw\scripts\freqtrade-daily-ml-screen.ps1
 ```
 
 Example OpenClaw prompt:

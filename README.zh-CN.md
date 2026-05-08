@@ -95,7 +95,7 @@
 ### 本地只读看板
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-factor-lab.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-factor-lab.ps1
 ```
 
 打开：
@@ -104,7 +104,7 @@ powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playgr
 ### 策略调试面板
 
 ```powershell
-cmd /c "C:\Users\Administrator\Documents\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd"
+cmd /c "D:\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd"
 ```
 
 打开：
@@ -116,34 +116,34 @@ cmd /c "C:\Users\Administrator\Documents\Playground\freqtrade-local\Launch Strat
 
 Fast：
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
 ```
 
 Stable：
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
 ```
 
 Evolution：
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-evolution.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-evolution.ps1
 ```
 
 Autotune：
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-autotune.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-autotune.ps1
 ```
 
 ### Bot
 
 山寨 Bot：
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
 ```
 
 主流 Bot：
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-mainstream-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-mainstream-auto-bot.ps1
 ```
 
 ## 关键文件

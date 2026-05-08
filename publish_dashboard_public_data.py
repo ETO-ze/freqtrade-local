@@ -15,6 +15,7 @@ DAEMON_ROOT = REPORTS_ROOT / "daemon"
 SETTINGS_PATH = PROJECT_ROOT / "server.openclaw-sync.local.json"
 REMOTE_PUBLIC_ROOT = "/www/wwwroot/duskrain.cn/dashboard-data"
 LOCAL_PUBLIC_ROOT = PROJECT_ROOT / "dashboard-data"
+MANUAL_PROMOTION_REPORT = REPORTS_ROOT / "openclaw-manual-promotion-latest.md"
 
 
 def load_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -42,6 +43,69 @@ def parse_thresholds(markdown: str) -> str:
     return match.group(1).strip() if match else ""
 
 
+def as_history_list(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    if isinstance(value, dict):
+        nested = value.get("value")
+        if isinstance(nested, list):
+            return [item for item in nested if isinstance(item, dict)]
+        return [value]
+    return []
+
+
+def metrics_from_approved_factor(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "total_profit_pct": item.get("total_profit_pct"),
+        "total_profit_usdt": item.get("total_profit_usdt"),
+        "profit_factor": item.get("profit_factor"),
+        "winrate": item.get("winrate") or item.get("winrate_pct"),
+        "max_drawdown_pct": item.get("max_drawdown_pct"),
+        "max_drawdown_abs": item.get("max_drawdown_abs"),
+        "trade_count": item.get("trade_count"),
+        "final_balance": item.get("final_balance"),
+        "sharpe": item.get("sharpe"),
+        "sortino": item.get("sortino"),
+        "calmar": item.get("calmar"),
+        "sqn": item.get("sqn"),
+    }
+
+
+def select_active_factor(
+    approved_history: list[dict[str, Any]],
+    runtime_policy: dict[str, Any],
+    active_config: dict[str, Any],
+) -> dict[str, Any]:
+    active_factor = runtime_policy.get("active_approved_factor")
+    if isinstance(active_factor, dict) and active_factor:
+        return active_factor
+
+    if not approved_history:
+        return {}
+
+    manual_report = read_text(MANUAL_PROMOTION_REPORT)
+    approved_at_match = re.search(r"- Source approved at:\s*(.+)", manual_report)
+    backtest_match = re.search(r"- Backtest:\s*(.+)", manual_report)
+    approved_at = approved_at_match.group(1).strip() if approved_at_match else ""
+    backtest_name = backtest_match.group(1).strip() if backtest_match else ""
+    if approved_at or backtest_name:
+        for item in approved_history:
+            if approved_at and str(item.get("generated_at") or "") == approved_at:
+                return item
+            if backtest_name and str(item.get("latest_backtest") or "") == backtest_name:
+                return item
+
+    return max(approved_history, key=lambda item: float(item.get("total_profit_pct") or 0))
+
+
+def manual_active_pairs() -> list[str]:
+    manual_report = read_text(MANUAL_PROMOTION_REPORT)
+    match = re.search(r"- Active pairs:\s*(.+)", manual_report)
+    if not match:
+        return []
+    return [item.strip() for item in match.group(1).split(",") if item.strip()]
+
+
 def build_backtest_payload() -> dict[str, Any]:
     backtest = load_json(REPORTS_ROOT / "openclaw-auto-backtest-latest.json")
     model = load_json(REPORTS_ROOT / "openclaw-best-model-latest.json")
@@ -49,7 +113,12 @@ def build_backtest_payload() -> dict[str, Any]:
     sync_pairs = load_json(REPORTS_ROOT / "openclaw-freqtrade-sync-latest.json")
     feedback = load_json(REPORTS_ROOT / "openclaw-trade-feedback-policy-candidate.json")
     approval_md = read_text(REPORTS_ROOT / "openclaw-auto-approval-latest.md")
-    approved_history = load_json(REPORTS_ROOT / "openclaw-approved-history.json", default=[])
+    approved_history = as_history_list(load_json(REPORTS_ROOT / "openclaw-approved-history.json", default=[]))
+    runtime_policy = load_json(PROJECT_ROOT / "user_data" / "model_runtime_policy.json")
+    active_config = load_json(PROJECT_ROOT / "user_data" / "config.openclaw-auto.json")
+    active_factor = select_active_factor(approved_history, runtime_policy, active_config)
+    active_pairs = manual_active_pairs() or list((active_config.get("exchange") or {}).get("pair_whitelist") or [])
+    active_metrics = metrics_from_approved_factor(active_factor) if active_factor else {}
 
     feedback_pairs: list[dict[str, Any]] = []
     for pair, item in (feedback.get("pairs") or {}).items():
@@ -65,25 +134,50 @@ def build_backtest_payload() -> dict[str, Any]:
         )
     feedback_pairs.sort(key=lambda item: float(item.get("feedback_score") or 0), reverse=True)
 
-    return {
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
+    latest_candidate = {
+        "generated_at": backtest.get("generated_at") or "",
         "strategy": backtest.get("strategy") or "",
         "timerange": backtest.get("timerange") or "",
         "latest_backtest": backtest.get("latest_backtest") or "",
         "metrics": backtest.get("metrics") or {},
-        "selected_pairs": list(sync_pairs.get("selected_pairs") or []),
-        "best_model": {
-            "model": model.get("selected_model") or "",
-            "weight": model.get("model_weight"),
-        },
-        "top_factors": list((model.get("top_factors") or [])[:8]),
-        "timings": list(daily.get("timings") or []),
-        "feedback_leaders": feedback_pairs[:6],
         "approval": {
             "decision": parse_decision(approval_md),
             "thresholds": parse_thresholds(approval_md),
         },
-        "approved_history": approved_history if isinstance(approved_history, list) else [approved_history],
+    }
+
+    return {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "display_mode": "active_approved_factor",
+        "strategy": active_factor.get("strategy") or active_config.get("strategy") or backtest.get("strategy") or "",
+        "timerange": active_factor.get("timerange") or backtest.get("timerange") or "",
+        "latest_backtest": active_factor.get("latest_backtest") or "",
+        "metrics": active_metrics or backtest.get("metrics") or {},
+        "selected_pairs": active_pairs or list(active_factor.get("selected_pairs") or []) or list(sync_pairs.get("selected_pairs") or []),
+        "active_factor": {
+            "generated_at": active_factor.get("generated_at") or "",
+            "strategy": active_factor.get("strategy") or active_config.get("strategy") or "",
+            "best_model": active_factor.get("best_model") or active_factor.get("model") or "",
+            "approval_mode": active_factor.get("approval_mode") or "",
+            "latest_backtest": active_factor.get("latest_backtest") or "",
+            "selected_pairs": active_pairs or list(active_factor.get("selected_pairs") or []),
+            "metrics": active_metrics,
+            "top_factors": list((active_factor.get("top_factors") or [])[:8]),
+            "source": "runtime_policy" if runtime_policy.get("active_approved_factor") else "approved_history_match",
+        },
+        "latest_candidate": latest_candidate,
+        "best_model": {
+            "model": active_factor.get("best_model") or active_factor.get("model") or model.get("selected_model") or "",
+            "weight": model.get("model_weight"),
+        },
+        "top_factors": list((active_factor.get("top_factors") or model.get("top_factors") or [])[:8]),
+        "timings": list(daily.get("timings") or []),
+        "feedback_leaders": feedback_pairs[:6],
+        "approval": {
+            "decision": "active approved factor in use" if active_factor else parse_decision(approval_md),
+            "thresholds": parse_thresholds(approval_md),
+        },
+        "approved_history": approved_history,
     }
 
 

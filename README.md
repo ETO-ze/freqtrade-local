@@ -95,7 +95,7 @@ Main actions:
 ### Local dashboard
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-factor-lab.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-factor-lab.ps1
 ```
 
 Open:
@@ -104,7 +104,7 @@ Open:
 ### Strategy debug lab
 
 ```powershell
-cmd /c "C:\Users\Administrator\Documents\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd"
+cmd /c "D:\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd"
 ```
 
 Open:
@@ -116,34 +116,34 @@ Open:
 
 Fast:
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
 ```
 
 Stable:
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
 ```
 
 Evolution:
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-evolution.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-evolution.ps1
 ```
 
 Autotune:
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-factor-daemon-autotune.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-autotune.ps1
 ```
 
 ### Bots
 
 Alt bot:
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
 ```
 
 Mainstream bot:
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\Users\Administrator\Documents\Playground\freqtrade-local\start-mainstream-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-mainstream-auto-bot.ps1
 ```
 
 ## Key Files

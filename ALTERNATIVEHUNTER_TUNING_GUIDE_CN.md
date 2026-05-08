@@ -7,13 +7,13 @@
 相关文件：
 
 - 策略：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\strategies\AlternativeHunter.py`
+  - `D:\Playground\freqtrade-local\user_data\strategies\AlternativeHunter.py`
 - 调试面板：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\strategy_debug_lab.py`
+  - `D:\Playground\freqtrade-local\strategy_debug_lab.py`
 - 运行时策略：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\model_runtime_policy.json`
+  - `D:\Playground\freqtrade-local\user_data\model_runtime_policy.json`
 - 调试临时策略：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\model_runtime_policy.debug.json`
+  - `D:\Playground\freqtrade-local\user_data\model_runtime_policy.debug.json`
 
 ## 基础字段
 
@@ -231,4 +231,4 @@ minimum_side_multiplier = 0.08
 - 面板里的调参只影响调试回测。
 - live bot 不读取这份临时调试参数。
 - 调试结果仍然写入：
-  - `C:\Users\Administrator\Documents\Playground\freqtrade-local\user_data\backtest_results`
+  - `D:\Playground\freqtrade-local\user_data\backtest_results`

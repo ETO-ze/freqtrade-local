@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$openclawRoot = 'C:\Users\Administrator\Documents\Playground\openclaw'
+$openclawRoot = 'D:\Playground\openclaw'
 $openclawProxyScript = Join-Path $openclawRoot 'start-openclaw-proxy.ps1'
 $daemonDir = Join-Path $root 'reports\daemon'
 $dockerDesktop = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
@@ -75,7 +75,7 @@ Start-Sleep -Seconds 3
 powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-factor-daemon-fast.ps1')
 Start-Sleep -Seconds 3
 powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-factor-daemon-autotune.ps1')
-Start-Sleep -Seconds 3
-powershell -ExecutionPolicy Bypass -File (Join-Path $root 'start-openclaw-auto-bot.ps1')
+
+Write-Host 'Skipped local freqtrade-openclaw-auto startup. Cloud server is the only trading execution target.' -ForegroundColor Yellow
 
 Write-Host 'OpenClaw startup workflow completed.' -ForegroundColor Cyan
