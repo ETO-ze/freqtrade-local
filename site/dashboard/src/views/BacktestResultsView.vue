@@ -8,6 +8,14 @@ const payload = ref<BacktestPayload | null>(null)
 
 const activeMetrics = computed(() => payload.value?.active_factor?.metrics || payload.value?.metrics || {})
 const candidateMetrics = computed(() => payload.value?.latest_candidate?.metrics || {})
+const backtestDetail = computed(() => payload.value?.backtest_detail)
+const liveTrading = computed(() => payload.value?.live_trading)
+const equityCurve = computed(() => backtestDetail.value?.equity_curve || [])
+const drawdownCurve = computed(() => equityCurve.value.map((item) => ({ ...item, drawdown_abs_pct: Math.abs(item.drawdown_pct) })))
+const pairRanking = computed(() => (backtestDetail.value?.pair_ranking || []).slice(0, 12))
+const pairTradeStats = computed(() => (backtestDetail.value?.pair_trade_stats || []).slice(0, 12))
+const monthlyRows = computed(() => backtestDetail.value?.monthly || [])
+const roadmapItems = computed(() => payload.value?.project_roadmap?.items || [])
 
 const headlineMetrics = computed(() => {
   const metrics = activeMetrics.value
@@ -44,6 +52,49 @@ function historyModel(item: { model?: string; best_model?: string }) {
 
 function historyWinrate(item: { winrate?: number; winrate_pct?: number }) {
   return item.winrate_pct ?? item.winrate ?? 'n/a'
+}
+
+function numericValue(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function formatSignedPct(value: unknown) {
+  const parsed = numericValue(value)
+  return `${parsed >= 0 ? '+' : ''}${parsed.toFixed(2)}%`
+}
+
+function linePoints(items: Array<Record<string, unknown>>, key: string, height = 180, width = 760) {
+  if (items.length < 2) return ''
+  const values = items.map((item) => numericValue(item[key]))
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min || 1
+  return values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * width
+      const y = height - ((value - min) / span) * height
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+}
+
+function barWidth(value: unknown, values: unknown[]) {
+  const max = Math.max(...values.map((item) => Math.abs(numericValue(item))), 1)
+  return `${Math.max(4, (Math.abs(numericValue(value)) / max) * 100)}%`
+}
+
+function monthName(month: number) {
+  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month - 1] || String(month)
+}
+
+function heatTone(value: unknown) {
+  const parsed = numericValue(value)
+  if (parsed > 5) return 'is-strong-profit'
+  if (parsed > 0) return 'is-profit'
+  if (parsed < -5) return 'is-strong-loss'
+  if (parsed < 0) return 'is-loss'
+  return 'is-flat'
 }
 
 async function loadBacktest() {
@@ -112,6 +163,22 @@ onMounted(() => {
       </div>
     </article>
 
+    <article class="panel span-2" v-if="roadmapItems.length">
+      <p class="panel-kicker">ROADMAP</p>
+      <h3>项目标记 / Walk-forward 重训</h3>
+      <div class="list-table">
+        <div v-for="item in roadmapItems" :key="item.id" class="list-row multi">
+          <div>
+            <strong>{{ item.title }} / {{ item.status_label || item.status }}</strong>
+            <p>{{ item.summary || 'n/a' }}</p>
+            <p>当前状态：{{ item.current_state || 'n/a' }}</p>
+            <p>下一步：{{ item.next_step || 'n/a' }}</p>
+          </div>
+          <span class="badge">{{ item.enabled ? 'enabled' : 'planned' }}</span>
+        </div>
+      </div>
+    </article>
+
     <article class="panel" v-if="payload?.latest_candidate">
       <p class="panel-kicker">LATEST CANDIDATE</p>
       <h3>最新候选回测</h3>
@@ -122,6 +189,121 @@ onMounted(() => {
         <div><span>回撤</span><strong>{{ formatPct(candidateMetrics.max_drawdown_pct) }}</strong></div>
         <div><span>交易</span><strong>{{ formatValue(candidateMetrics.trade_count) }}</strong></div>
         <div><span>结论</span><strong>{{ payload.latest_candidate.approval.decision || 'n/a' }}</strong></div>
+      </div>
+    </article>
+
+    <article class="panel span-2" v-if="liveTrading">
+      <p class="panel-kicker">LIVE TRADING</p>
+      <h3>云端实盘只读状态</h3>
+      <div class="key-grid">
+        <div><span>Bot</span><strong>{{ liveTrading.bot_status || 'n/a' }}</strong></div>
+        <div><span>API</span><strong>{{ liveTrading.api_ok ? 'healthy' : 'unknown' }} / {{ liveTrading.api_http_code || 'n/a' }}</strong></div>
+        <div><span>持仓数量</span><strong>{{ liveTrading.open_trade_count ?? 'n/a' }}</strong></div>
+        <div><span>最近同步模式</span><strong>{{ liveTrading.mode || 'n/a' }}</strong></div>
+        <div><span>重启保护</span><strong>{{ liveTrading.restart_action || 'n/a' }}</strong></div>
+        <div><span>同步时间</span><strong>{{ liveTrading.generated_at || 'n/a' }}</strong></div>
+      </div>
+      <div class="pair-list">
+        <div>
+          <span>当前已知持仓</span>
+          <p>{{ liveTrading.open_trade_pairs?.map(shortPair).join(', ') || 'none' }}</p>
+        </div>
+        <div>
+          <span>保护说明</span>
+          <p>{{ liveTrading.restart_reason || 'n/a' }}</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel span-3" v-if="backtestDetail">
+      <p class="panel-kicker">BACKTEST DETAIL</p>
+      <h3>回测走势与结构</h3>
+      <p class="panel-copy">
+        数据来自 Freqtrade 回测结果包 {{ backtestDetail.source_zip || 'n/a' }}。曲线和统计均基于 zip 内真实 trades / daily_profit / periodic_breakdown 聚合。
+      </p>
+      <div class="key-grid">
+        <div><span>策略</span><strong>{{ backtestDetail.strategy_name || 'n/a' }}</strong></div>
+        <div><span>起始资金</span><strong>{{ backtestDetail.starting_balance ?? 'n/a' }}</strong></div>
+        <div><span>结束资金</span><strong>{{ backtestDetail.final_balance ?? 'n/a' }}</strong></div>
+        <div><span>回撤</span><strong>{{ formatPct(backtestDetail.max_drawdown_pct) }}</strong></div>
+        <div><span>Long 交易</span><strong>{{ backtestDetail.trade_count_long ?? 'n/a' }}</strong></div>
+        <div><span>Short 交易</span><strong>{{ backtestDetail.trade_count_short ?? 'n/a' }}</strong></div>
+      </div>
+    </article>
+
+    <article class="panel span-3" v-if="equityCurve.length">
+      <p class="panel-kicker">EQUITY / DRAWDOWN</p>
+      <h3>权益曲线与回撤曲线</h3>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <span>Equity Curve</span>
+          <svg viewBox="0 0 760 180" class="line-chart" preserveAspectRatio="none">
+            <polyline :points="linePoints(equityCurve, 'equity')" />
+          </svg>
+        </div>
+        <div class="chart-card">
+          <span>Drawdown Curve</span>
+          <svg viewBox="0 0 760 180" class="line-chart danger" preserveAspectRatio="none">
+            <polyline :points="linePoints(drawdownCurve, 'drawdown_abs_pct')" />
+          </svg>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel span-2" v-if="pairRanking.length">
+      <p class="panel-kicker">PAIR RANKING</p>
+      <h3>币种盈利排行</h3>
+      <div class="bar-list">
+        <div v-for="item in pairRanking" :key="item.pair" class="bar-row">
+          <div class="bar-row-head">
+            <strong>{{ shortPair(item.pair) }}</strong>
+            <span>{{ item.profit_total_abs }} USDT / {{ item.winrate }}%</span>
+          </div>
+          <div class="bar-track">
+            <i :class="{ negative: numericValue(item.profit_total_abs) < 0 }" :style="{ width: barWidth(item.profit_total_abs, pairRanking.map((row) => row.profit_total_abs)) }"></i>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel" v-if="backtestDetail?.side_stats?.length">
+      <p class="panel-kicker">LONG / SHORT</p>
+      <h3>多空分开统计</h3>
+      <div class="list-table">
+        <div v-for="item in backtestDetail.side_stats" :key="item.side" class="list-row multi">
+          <div>
+            <strong>{{ item.side.toUpperCase() }} / {{ item.profit_abs }} USDT</strong>
+            <p>交易 {{ item.trades }} | 胜率 {{ item.winrate }}% | 平均收益 {{ item.avg_profit_pct }}% | 平均杠杆 {{ item.avg_leverage }}</p>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel span-2" v-if="monthlyRows.length">
+      <p class="panel-kicker">MONTHLY HEATMAP</p>
+      <h3>月度收益热力图</h3>
+      <div class="heat-grid">
+        <div v-for="item in monthlyRows" :key="`${item.year}-${item.month}`" class="heat-cell" :class="heatTone(item.profit_pct)">
+          <span>{{ item.year }} {{ monthName(item.month) }}</span>
+          <strong>{{ formatSignedPct(item.profit_pct) }}</strong>
+          <small>{{ item.trades }} trades</small>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel span-3" v-if="pairTradeStats.length">
+      <p class="panel-kicker">PAIR TRADE STATS</p>
+      <h3>单币交易数与胜率</h3>
+      <div class="list-table compact-table">
+        <div v-for="item in pairTradeStats" :key="item.pair" class="list-row multi">
+          <div>
+            <strong>{{ shortPair(item.pair) }} / {{ item.profit_abs }} USDT</strong>
+            <p>
+              交易 {{ item.trades }} | 胜率 {{ item.winrate }}% | Long {{ item.long_trades }} |
+              Short {{ item.short_trades }} | 平均收益 {{ item.avg_profit_pct }}%
+            </p>
+          </div>
+        </div>
       </div>
     </article>
 

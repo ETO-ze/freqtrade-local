@@ -18,6 +18,7 @@
   --warn: #ffcf6b;
   --mx: 50vw;
   --my: 22vh;
+  --landing-bg-image: url("/assets/duskrain-nexus-bg.png?v=20260509a");
 }
 
 html,
@@ -36,11 +37,17 @@ body {
   position: relative;
   overflow-x: hidden;
   background:
+    linear-gradient(180deg, rgba(4, 8, 22, 0.18) 0%, rgba(5, 8, 22, 0.68) 58%, rgba(5, 8, 22, 0.92) 100%),
+    radial-gradient(circle at 48% 18%, rgba(97, 227, 255, 0.08), transparent 0, transparent 24%),
+    var(--landing-bg-image),
     radial-gradient(circle at 14% 18%, rgba(97, 227, 255, 0.12), transparent 0, transparent 24%),
     radial-gradient(circle at 84% 14%, rgba(79, 123, 255, 0.12), transparent 0, transparent 22%),
     radial-gradient(circle at 52% 78%, rgba(103, 216, 255, 0.08), transparent 0, transparent 26%),
     radial-gradient(circle at 24% 82%, rgba(79, 123, 255, 0.08), transparent 0, transparent 24%),
     linear-gradient(180deg, var(--bg3) 0%, var(--bg2) 36%, var(--bg) 100%);
+  background-size: cover, auto, cover, auto, auto, auto, auto, auto;
+  background-position: center, center, center top, center, center, center, center, center;
+  background-attachment: fixed, fixed, fixed, scroll, scroll, scroll, scroll, scroll;
 }
 
 .backdrop,
@@ -54,12 +61,12 @@ body {
 
 .backdrop {
   background:
-    radial-gradient(circle at 18% 20%, rgba(97, 227, 255, 0.18), transparent 0, transparent 20%),
-    radial-gradient(circle at 82% 18%, rgba(79, 123, 255, 0.15), transparent 0, transparent 21%),
-    radial-gradient(circle at 48% 72%, rgba(103, 216, 255, 0.1), transparent 0, transparent 19%),
-    radial-gradient(circle at 76% 68%, rgba(97, 227, 255, 0.09), transparent 0, transparent 17%);
-  filter: blur(42px);
-  opacity: 0.88;
+    linear-gradient(90deg, rgba(3, 8, 23, 0.72), transparent 30%, transparent 70%, rgba(3, 8, 23, 0.72)),
+    radial-gradient(circle at 18% 20%, rgba(97, 227, 255, 0.12), transparent 0, transparent 20%),
+    radial-gradient(circle at 82% 18%, rgba(79, 123, 255, 0.1), transparent 0, transparent 21%),
+    radial-gradient(circle at 48% 72%, rgba(103, 216, 255, 0.07), transparent 0, transparent 19%);
+  filter: blur(34px);
+  opacity: 0.72;
 }
 
 .grid {
@@ -68,7 +75,7 @@ body {
     linear-gradient(90deg, rgba(109, 190, 255, 0.08) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), transparent);
-  opacity: 0.42;
+  opacity: 0.32;
 }
 
 .noise {

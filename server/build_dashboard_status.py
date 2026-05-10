@@ -1,5 +1,8 @@
 import json
 import subprocess
+import base64
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +25,15 @@ def load_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        if value in (None, "", "N/A", "n/a"):
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def utc_now() -> str:
@@ -50,6 +62,7 @@ def build_status() -> dict[str, Any]:
 
     code, api_ping = run(["curl", "-s", "http://127.0.0.1:8081/api/v1/ping"])
     api_ok = code == 0 and '"pong"' in api_ping
+    live_trading = read_live_trading(api_server)
 
     status = {
         "generated_at": utc_now(),
@@ -71,6 +84,7 @@ def build_status() -> dict[str, Any]:
             "listen_port": int(api_server.get("listen_port") or 0),
             "pair_count": len(pair_whitelist),
             "tradable_pairs": pair_whitelist,
+            "live_trading": live_trading,
         },
         "api": {
             "healthy": api_ok,
@@ -89,6 +103,57 @@ def build_status() -> dict[str, Any]:
         },
     }
     return status
+
+
+def read_live_trading(api_server: dict[str, Any]) -> dict[str, Any]:
+    username = str(api_server.get("username") or "")
+    password = str(api_server.get("password") or "")
+    if not username or not password:
+        return {"open_trade_count": None, "open_trade_pairs": [], "error": "api credentials missing"}
+
+    token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    request = urllib.request.Request(
+        "http://127.0.0.1:8081/api/v1/status",
+        headers={"Authorization": f"Basic {token}", "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            body = response.read().decode("utf-8", "ignore")
+        payload = json.loads(body or "[]")
+    except Exception as exc:
+        return {"open_trade_count": None, "open_trade_pairs": [], "error": str(exc)}
+
+    if isinstance(payload, list):
+        trades = payload
+    elif isinstance(payload, dict):
+        trades = payload.get("trades") or payload.get("data") or payload.get("result") or []
+    else:
+        trades = []
+
+    open_trades = []
+    for trade in trades:
+        if not isinstance(trade, dict):
+            continue
+        if trade.get("is_open") is False:
+            continue
+        open_trades.append(
+            {
+                "pair": str(trade.get("pair") or ""),
+                "profit_abs": trade.get("profit_abs"),
+                "profit_ratio": trade.get("profit_ratio"),
+                "is_short": bool(trade.get("is_short")),
+                "open_date": str(trade.get("open_date") or ""),
+                "leverage": trade.get("leverage"),
+            }
+        )
+
+    return {
+        "open_trade_count": len(open_trades),
+        "open_trade_pairs": [item["pair"] for item in open_trades if item.get("pair")],
+        "total_profit_abs": round(sum(safe_float(item.get("profit_abs")) for item in open_trades), 6),
+        "total_profit_ratio": round(sum(safe_float(item.get("profit_ratio")) for item in open_trades), 6),
+        "trades": open_trades[:12],
+    }
 
 
 def main() -> int:

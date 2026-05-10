@@ -23,6 +23,103 @@ except ImportError:
     XGBClassifier = None
 
 
+FEATURE_FAMILIES = {
+    "mark_premium": {
+        "mark_premium_abs",
+        "mark_premium_change_3",
+        "mark_premium_zscore_48",
+        "mark_close",
+    },
+    "funding": {
+        "funding_rate",
+        "funding_rate_abs",
+        "funding_rate_change_3",
+        "funding_rate_zscore_48",
+    },
+    "benchmark_regime": {
+        "btc_ret_1",
+        "btc_ret_3",
+        "btc_ret_6",
+        "btc_ret_12",
+        "btc_ret_24",
+        "btc_trend_24",
+        "eth_ret_1",
+        "eth_ret_3",
+        "eth_ret_6",
+        "eth_ret_12",
+        "eth_ret_24",
+        "eth_trend_24",
+        "rel_btc_ret_3",
+        "rel_btc_ret_12",
+        "rel_eth_ret_3",
+        "rel_eth_ret_12",
+        "btc_beta_48",
+        "eth_beta_48",
+        "btc_regime_spread_24",
+        "eth_regime_spread_24",
+    },
+    "cross_sectional": {
+        "cs_ret_3_rank",
+        "cs_ret_12_rank",
+        "cs_ret_24_rank",
+        "cs_rel_btc_12_rank",
+        "cs_rel_eth_12_rank",
+        "cs_volume_zscore_24_rank",
+        "cs_volume_trend_24_72_rank",
+        "cs_momentum_blend_rank",
+    },
+    "trend_momentum": {
+        "ret_1",
+        "ret_3",
+        "ret_6",
+        "ret_12",
+        "ret_24",
+        "ema_gap",
+        "ema_8_55_gap",
+        "ema_gap_slope_3",
+        "rsi_14",
+        "price_vs_rollmean_24",
+        "breakout_24",
+        "breakdown_24",
+        "ret_1_zscore_24",
+        "ret_3_zscore_24",
+    },
+    "volume_structure": {
+        "range_pct",
+        "body_pct",
+        "direction",
+        "upper_wick_pct",
+        "lower_wick_pct",
+        "volume_ratio_6",
+        "volume_ratio_24",
+        "volume_trend_24_72",
+        "volume_zscore_24",
+        "price_volume_divergence_24",
+        "reversion_pressure_24",
+        "volume_absorption_24",
+        "range_volume_imbalance_24",
+    },
+    "volatility": {
+        "volatility_12",
+        "volatility_24",
+        "volatility_ratio_12_24",
+        "atr_14_pct",
+    },
+    "session": {
+        "hour_utc",
+        "day_of_week",
+        "hour_sin",
+        "hour_cos",
+        "dow_sin",
+        "dow_cos",
+        "is_asia_session",
+        "is_eu_session",
+        "is_us_session",
+        "is_weekend",
+    },
+}
+
+
 def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     delta = close.diff()
     gain = delta.clip(lower=0).rolling(period).mean()
@@ -233,9 +330,43 @@ def load_dataset(data_dir: Path, pairs, timeframe: str, horizon: int, threshold:
     if not frames:
         raise FileNotFoundError("No matching data files were found for the requested pairs.")
     dataset = pd.concat(frames, ignore_index=True)
+    dataset = append_cross_sectional_features(dataset)
     dataset["pair_name"] = dataset["pair"]
     dataset = pd.get_dummies(dataset, columns=["pair"], prefix="pair")
     return dataset.sort_values("date").reset_index(drop=True)
+
+
+def append_cross_sectional_features(dataset: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add same-timestamp ranking features so the model can learn altcoin rotation,
+    not only single-pair time-series behavior.
+    """
+    df = dataset.copy()
+    rank_specs = {
+        "ret_3": "cs_ret_3_rank",
+        "ret_12": "cs_ret_12_rank",
+        "ret_24": "cs_ret_24_rank",
+        "rel_btc_ret_12": "cs_rel_btc_12_rank",
+        "rel_eth_ret_12": "cs_rel_eth_12_rank",
+        "volume_zscore_24": "cs_volume_zscore_24_rank",
+        "volume_trend_24_72": "cs_volume_trend_24_72_rank",
+    }
+    grouped = df.groupby("date", sort=False)
+    for source, target in rank_specs.items():
+        if source not in df.columns:
+            df[target] = 0.5
+            continue
+        ranked = grouped[source].rank(method="average", pct=True)
+        df[target] = ranked.fillna(0.5)
+
+    df["cs_momentum_blend_rank"] = (
+        df["cs_ret_3_rank"] * 0.25
+        + df["cs_ret_12_rank"] * 0.30
+        + df["cs_ret_24_rank"] * 0.20
+        + df["cs_rel_btc_12_rank"] * 0.15
+        + df["cs_rel_eth_12_rank"] * 0.10
+    ).fillna(0.5)
+    return df
 
 
 def get_feature_columns(dataset: pd.DataFrame) -> List[str]:
@@ -475,6 +606,9 @@ def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_r
             )
         )
     )
+    feature_family_shares = compute_feature_family_shares(feature_importance_pairs)
+    dominant_feature_family = max(feature_family_shares.items(), key=lambda item: item[1])[0] if feature_family_shares else ""
+    max_feature_family_share = float(feature_family_shares.get(dominant_feature_family, 0.0)) if dominant_feature_family else 0.0
 
     return {
         "model": name,
@@ -491,9 +625,29 @@ def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_r
         "top3_feature_share": round(top3_feature_share, 4),
         "mark_premium_family_share": round(mark_premium_family_share, 4),
         "orthogonal_feature_share": round(orthogonal_feature_share, 4),
+        "feature_family_shares": {key: round(float(value), 4) for key, value in feature_family_shares.items()},
+        "dominant_feature_family": dominant_feature_family,
+        "max_feature_family_share": round(max_feature_family_share, 4),
         "top_features": [{"feature": feature, "importance": round(float(score), 4)} for feature, score in top_features],
         "predictions": predictions.tolist(),
     }
+
+
+def feature_family(feature: str) -> str:
+    if feature.startswith("pair_"):
+        return "pair_identity"
+    for family, names in FEATURE_FAMILIES.items():
+        if feature in names:
+            return family
+    return "other"
+
+
+def compute_feature_family_shares(feature_importance_pairs: list[tuple[str, float]]) -> Dict[str, float]:
+    shares: Dict[str, float] = {}
+    for feature, score in feature_importance_pairs:
+        family = feature_family(feature)
+        shares[family] = shares.get(family, 0.0) + float(score)
+    return dict(sorted(shares.items(), key=lambda item: item[1], reverse=True))
 
 
 def sanitize_feature_names(frame: pd.DataFrame) -> pd.DataFrame:
@@ -618,6 +772,20 @@ def write_markdown(path: Path, results, metadata):
                 f"- Predicted short avg forward return: `{result['predicted_short_avg_forward_return']}`",
                 f"- Long precision: `{result['long_precision']}`",
                 f"- Short precision: `{result['short_precision']}`",
+                f"- Dominant feature family: `{result.get('dominant_feature_family', '')}` (`{result.get('max_feature_family_share', 0.0)}`)",
+                f"- Mark premium family share: `{result.get('mark_premium_family_share', 0.0)}`",
+                f"- Orthogonal feature share: `{result.get('orthogonal_feature_share', 0.0)}`",
+                "",
+                "### Feature Families",
+                "",
+                "| Family | Share |",
+                "| --- | ---: |",
+            ]
+        )
+        for family, share in (result.get("feature_family_shares") or {}).items():
+            lines.append(f"| {family} | {share} |")
+        lines.extend(
+            [
                 "",
                 "| Feature | Importance |",
                 "| --- | ---: |",

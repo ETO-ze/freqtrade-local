@@ -86,6 +86,76 @@ def compute_funding_score(funding_frame: pd.DataFrame | None) -> float:
     return clamp(1.0 - penalty)
 
 
+def compute_time_series_confirmation(close: pd.Series, realized_vol_5m: float) -> Dict:
+    if close.empty or len(close) < 72:
+        return {
+            "trend_confirmation_score": 0.0,
+            "trend_direction_score": 0.0,
+            "ema_stack_score": 0.0,
+            "breakout_score": 0.0,
+            "trend_consistency_score": 0.0,
+        }
+
+    close = close.astype(float)
+    last = float(close.iloc[-1])
+    if last <= 0:
+        return {
+            "trend_confirmation_score": 0.0,
+            "trend_direction_score": 0.0,
+            "ema_stack_score": 0.0,
+            "breakout_score": 0.0,
+            "trend_consistency_score": 0.0,
+        }
+
+    ema_fast = close.ewm(span=12, adjust=False).mean()
+    ema_mid = close.ewm(span=48, adjust=False).mean()
+    ema_slow = close.ewm(span=144, adjust=False).mean()
+    fast_last = float(ema_fast.iloc[-1])
+    mid_last = float(ema_mid.iloc[-1])
+    slow_last = float(ema_slow.iloc[-1])
+
+    bullish_stack = fast_last > mid_last > slow_last
+    bearish_stack = fast_last < mid_last < slow_last
+    ema_spread = abs(fast_last / slow_last - 1.0) if slow_last > 0 else 0.0
+    ema_stack_score = clamp(0.35 + min(ema_spread / 0.035, 0.65)) if bullish_stack or bearish_stack else clamp(ema_spread / 0.05)
+
+    high_72 = float(close.tail(864).max())
+    low_72 = float(close.tail(864).min())
+    breakout_up = (last / high_72) if high_72 > 0 else 0.0
+    breakout_down = (low_72 / last) if last > 0 else 0.0
+    breakout_score = clamp(max(breakout_up, breakout_down) - 0.92, 0.0, 0.08) / 0.08
+
+    tail = close.tail(96)
+    mid_tail = ema_mid.tail(len(tail))
+    above_mid = float((tail > mid_tail).mean()) if len(tail) else 0.0
+    below_mid = float((tail < mid_tail).mean()) if len(tail) else 0.0
+    trend_consistency_score = max(above_mid, below_mid)
+
+    ret_24h = float(last / float(close.iloc[-289]) - 1.0) if len(close) >= 289 and close.iloc[-289] > 0 else 0.0
+    ret_72h = float(last / float(close.iloc[0]) - 1.0) if close.iloc[0] > 0 else 0.0
+    raw_direction = (ret_24h * 2.5) + (ret_72h * 1.2) + ((fast_last / mid_last - 1.0) * 2.0 if mid_last > 0 else 0.0)
+    trend_direction_score = clamp(raw_direction / 0.16, -1.0, 1.0)
+
+    vol_penalty = 0.0
+    if np.isfinite(realized_vol_5m) and realized_vol_5m > 0.018:
+        vol_penalty = min((realized_vol_5m - 0.018) / 0.018, 0.35)
+    confirmation = (
+        ema_stack_score * 0.35
+        + breakout_score * 0.20
+        + trend_consistency_score * 0.25
+        + abs(trend_direction_score) * 0.20
+    )
+    confirmation = clamp(confirmation - vol_penalty)
+
+    return {
+        "trend_confirmation_score": round(confirmation, 4),
+        "trend_direction_score": round(trend_direction_score, 4),
+        "ema_stack_score": round(ema_stack_score, 4),
+        "breakout_score": round(breakout_score, 4),
+        "trend_consistency_score": round(trend_consistency_score, 4),
+    }
+
+
 def load_json_cache(path: Path, max_age_hours: float) -> List[Dict] | None:
     if not path.exists():
         return None
@@ -299,7 +369,9 @@ def build_benchmark_regime(data_dir: Path) -> Dict:
     btc = benchmark_signal(load_ohlcv_frame(data_dir, "BTC"), "BTC")
     eth = benchmark_signal(load_ohlcv_frame(data_dir, "ETH"), "ETH")
     available_scores = [float(x["trend_score"]) for x in (btc, eth) if x.get("available")]
+    available_vols = [float(x["hourly_vol_72h"]) for x in (btc, eth) if x.get("available")]
     combined = float(np.mean(available_scores)) if available_scores else 0.0
+    combined_vol = float(np.mean(available_vols)) if available_vols else 0.0
     if combined >= 0.35:
         regime = "risk_on"
         risk_scale = 1.15
@@ -312,11 +384,23 @@ def build_benchmark_regime(data_dir: Path) -> Dict:
         regime = "neutral"
         risk_scale = 1.0
         leverage_scale = 1.0
+    if combined_vol >= 0.018:
+        volatility_state = "high"
+        risk_scale *= 0.72
+        leverage_scale *= 0.72
+    elif combined_vol <= 0.006:
+        volatility_state = "low"
+        risk_scale *= 1.04
+        leverage_scale *= 1.03
+    else:
+        volatility_state = "normal"
     return {
         "regime": regime,
         "combined_trend_score": round(combined, 4),
-        "risk_scale": risk_scale,
-        "leverage_scale": leverage_scale,
+        "combined_hourly_vol_72h": round(combined_vol, 6),
+        "volatility_state": volatility_state,
+        "risk_scale": round(risk_scale, 4),
+        "leverage_scale": round(leverage_scale, 4),
         "btc": btc,
         "eth": eth,
     }
@@ -355,6 +439,7 @@ def load_market_metrics(data_dir: Path, exclude_pairs: set[str], min_rows_72h: i
         ma_gap_72h = float(last_close / float(close_72.mean()) - 1.0) if float(close_72.mean()) > 0 else 0.0
         raw_momentum = (price_ret_24h * 3.0) + (price_ret_72h * 1.5) + (ma_gap_72h * 2.0)
         directional_momentum = clamp(raw_momentum / 0.18, -1.0, 1.0)
+        time_series = compute_time_series_confirmation(close_72, realized_vol_5m)
 
         funding_path = data_dir / f"{stem}-1h-funding_rate.feather"
         funding_frame = pd.read_feather(funding_path) if funding_path.exists() else None
@@ -379,6 +464,7 @@ def load_market_metrics(data_dir: Path, exclude_pairs: set[str], min_rows_72h: i
                 "ma_gap_72h": round(ma_gap_72h, 5),
                 "directional_momentum_score": round(directional_momentum, 4),
                 "momentum_score": round(abs(directional_momentum), 4),
+                **time_series,
             }
         )
     return metrics
@@ -398,27 +484,55 @@ def build_output(metrics: List[Dict], top_n: int, benchmark_regime: Dict | None 
         frame["market_cap_score"] = 0.0
     if "momentum_score" not in frame.columns:
         frame["momentum_score"] = 0.0
+    if "trend_confirmation_score" not in frame.columns:
+        frame["trend_confirmation_score"] = 0.0
+    if "trend_direction_score" not in frame.columns:
+        frame["trend_direction_score"] = 0.0
+    btc_signal = (benchmark_regime or {}).get("btc") or {}
+    eth_signal = (benchmark_regime or {}).get("eth") or {}
+    benchmark_ret_24h = float(np.mean([float(item.get("ret_24h", 0.0) or 0.0) for item in (btc_signal, eth_signal) if item.get("available")])) if any(item.get("available") for item in (btc_signal, eth_signal)) else 0.0
+    benchmark_ret_72h = float(np.mean([float(item.get("ret_72h", 0.0) or 0.0) for item in (btc_signal, eth_signal) if item.get("available")])) if any(item.get("available") for item in (btc_signal, eth_signal)) else 0.0
+    frame["relative_strength_24h"] = frame["price_ret_24h"] - benchmark_ret_24h
+    frame["relative_strength_72h"] = frame["price_ret_72h"] - benchmark_ret_72h
+    frame["relative_strength_raw"] = (frame["relative_strength_24h"] * 3.0) + (frame["relative_strength_72h"] * 1.5) + (frame["ma_gap_72h"] * 1.0)
+    frame["relative_strength_score"] = frame["relative_strength_raw"].apply(lambda value: clamp(float(value) / 0.18, -1.0, 1.0))
+    frame["cross_sectional_rank"] = frame["relative_strength_score"].rank(method="average", pct=True)
+    regime_name = str((benchmark_regime or {}).get("regime") or "unknown")
+    if regime_name == "risk_on":
+        frame["regime_alignment_score"] = frame["relative_strength_score"].apply(lambda value: clamp((float(value) + 1.0) / 2.0))
+    elif regime_name == "risk_off":
+        # In risk-off markets, prefer names with cleaner relative behavior, but do not require long-only strength.
+        frame["regime_alignment_score"] = frame["relative_strength_score"].apply(lambda value: clamp((abs(float(value)) + 0.25) / 1.25))
+    else:
+        frame["regime_alignment_score"] = frame["relative_strength_score"].apply(lambda value: clamp((abs(float(value)) + 0.15) / 1.15))
+
     has_market_cap = float(frame["market_cap_score"].max() or 0.0) > 0.0
     if has_market_cap:
         frame["overall_score"] = (
-            frame["quote24_rank"] * 0.30
-            + frame["quote72_rank"] * 0.14
+            frame["quote24_rank"] * 0.26
+            + frame["quote72_rank"] * 0.12
             + frame["market_cap_score"] * 0.18
-            + frame["momentum_score"] * 0.08
+            + frame["momentum_score"] * 0.06
+            + frame["cross_sectional_rank"] * 0.10
+            + frame["regime_alignment_score"] * 0.05
+            + frame["trend_confirmation_score"] * 0.07
             + frame["persistence_score"] * 0.10
             + frame["stability_score"] * 0.10
-            + frame["funding_score"] * 0.07
+            + frame["funding_score"] * 0.04
             + frame["volatility_score"] * 0.03
             + frame["recency_score"] * 0.02
         ) * 100.0
     else:
         frame["overall_score"] = (
-            frame["quote24_rank"] * 0.39
-            + frame["quote72_rank"] * 0.18
-            + frame["momentum_score"] * 0.08
+            frame["quote24_rank"] * 0.31
+            + frame["quote72_rank"] * 0.15
+            + frame["momentum_score"] * 0.06
+            + frame["cross_sectional_rank"] * 0.12
+            + frame["regime_alignment_score"] * 0.07
+            + frame["trend_confirmation_score"] * 0.08
             + frame["persistence_score"] * 0.10
             + frame["stability_score"] * 0.10
-            + frame["funding_score"] * 0.10
+            + frame["funding_score"] * 0.07
             + frame["volatility_score"] * 0.03
             + frame["recency_score"] * 0.02
         ) * 100.0
@@ -467,14 +581,16 @@ def write_markdown(path: Path, payload: Dict) -> None:
         "",
         "## Ranking",
         "",
-        "| Pair | Score | Market Rank | History Days | 24h Ret | 72h Ret | Momentum | Quote Vol 24h | Quote Vol 72h Avg | Persistence | Stability | Funding | Volatility | Recency |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Pair | Score | Market Rank | History Days | 24h Ret | 72h Ret | Relative Strength | Regime Align | Trend Confirm | Trend Dir | Momentum | Quote Vol 24h | Quote Vol 72h Avg | Persistence | Stability | Funding Risk | Volatility | Recency |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for item in payload["ranking"]:
         market_rank = item.get("market_cap_rank") or ""
         lines.append(
             f"| {item['pair']} | {item['overall_score']} | {market_rank} | {item.get('history_days', 0)} | "
-            f"{item.get('price_ret_24h', 0)} | {item.get('price_ret_72h', 0)} | {item.get('directional_momentum_score', 0)} | {item['quote_volume_24h']} | "
+            f"{item.get('price_ret_24h', 0)} | {item.get('price_ret_72h', 0)} | {round(float(item.get('relative_strength_score', 0)), 4)} | "
+            f"{round(float(item.get('regime_alignment_score', 0)), 4)} | {round(float(item.get('trend_confirmation_score', 0)), 4)} | "
+            f"{round(float(item.get('trend_direction_score', 0)), 4)} | {item.get('directional_momentum_score', 0)} | {item['quote_volume_24h']} | "
             f"{item['quote_volume_72h_avg']} | {item['persistence_score']} | {item['stability_score']} | "
             f"{item['funding_score']} | {item['volatility_score']} | {round(float(item['recency_score']), 4)} |"
         )

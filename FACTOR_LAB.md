@@ -20,6 +20,11 @@ powershell -ExecutionPolicy Bypass -File .\start-factor-lab.ps1
 - 查看模型分数、因子重要性、单币边际、原始 JSON
 - 读取已有历史报告做对比
 - 运行 OpenClaw 本地模拟筛选
+- 查看候选因子与当前 active/历史最优因子的对比
+- 读取最新审批报告中的真实 gate、实验高收益通道和 promotion protection 规则
+- 查看回测缓存命中、回测区间、最新行情时间和结果包信息
+- 诊断 mark_premium 依赖、top3 因子集中度和正交因子占比
+- 查看回测详情：权益曲线、回撤曲线、币种盈利排行、long/short 统计、月度收益热力图、单币交易数与胜率
 
 说明：
 

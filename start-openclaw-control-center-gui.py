@@ -35,6 +35,8 @@ TUNING_GUIDE_PATH = ROOT / "ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md"
 TELEGRAM_GUIDE_PATH = ROOT / "TELEGRAM_TEMPLATE_LAB.md"
 README_EN = ROOT / "README.md"
 README_ZH = ROOT / "README.zh-CN.md"
+PROJECT_INTRO_ZH = ROOT / "PROJECT_INTRO.zh-CN.md"
+PROJECT_ROADMAP = ROOT / "PROJECT_ROADMAP.json"
 
 DAEMONS = {
     "fast": {
@@ -172,7 +174,7 @@ class ControlCenter(tk.Tk):
         self.title("OpenClaw + Freqtrade 总控中心")
         self.geometry("1480x920")
         self.minsize(1200, 780)
-        self.configure(bg="#07111f")
+        self.configure(bg="#f5f7fb")
         if ICON_PATH.exists():
             try:
                 self.iconbitmap(default=str(ICON_PATH))
@@ -205,6 +207,7 @@ class ControlCenter(tk.Tk):
             "pairs": tk.StringVar(value="n/a"),
             "latest_candidate": tk.StringVar(value="n/a"),
         }
+        self.roadmap_var = tk.StringVar(value="n/a")
 
         self._configure_style()
         self._build()
@@ -217,16 +220,21 @@ class ControlCenter(tk.Tk):
             style.theme_use("clam")
         except tk.TclError:
             pass
-        bg = "#07111f"
-        panel = "#0c1a2f"
-        line = "#1d4460"
-        text = "#e9f6ff"
-        muted = "#8fb3c8"
-        accent = "#42d5ff"
+        bg = "#f5f7fb"
+        panel = "#ffffff"
+        panel_2 = "#f8fafc"
+        line = "#d7dee9"
+        text = "#0f172a"
+        muted = "#64748b"
+        accent = "#2563eb"
+        green = "#059669"
+        danger = "#dc2626"
 
         style.configure(".", font=("Microsoft YaHei UI", 10), background=bg, foreground=text)
         style.configure("TFrame", background=bg)
+        style.configure("Hero.TFrame", background=bg)
         style.configure("Card.TFrame", background=panel, relief="solid", borderwidth=1)
+        style.configure("Metric.TFrame", background=panel_2, relief="solid", borderwidth=1)
         style.configure("Card.TLabelframe", background=panel, bordercolor=line, relief="solid")
         style.configure(
             "Card.TLabelframe.Label",
@@ -239,18 +247,23 @@ class ControlCenter(tk.Tk):
         style.configure("Kicker.TLabel", background=panel, foreground=accent, font=("Microsoft YaHei UI", 9, "bold"))
         style.configure("CardTitle.TLabel", background=panel, foreground=text, font=("Microsoft YaHei UI", 13, "bold"))
         style.configure("Value.TLabel", background=panel, foreground=text, font=("Microsoft YaHei UI", 12, "bold"))
+        style.configure("MetricValue.TLabel", background=panel_2, foreground=text, font=("Microsoft YaHei UI", 13, "bold"))
+        style.configure("MetricMuted.TLabel", background=panel_2, foreground=muted, font=("Microsoft YaHei UI", 9))
         style.configure("Muted.TLabel", background=panel, foreground=muted)
-        style.configure("TButton", padding=(12, 7), background="#10243d", foreground=text, bordercolor=line)
-        style.map("TButton", background=[("active", "#153250")], foreground=[("active", text)])
-        style.configure("Accent.TButton", background="#176f91", foreground="#ffffff", bordercolor="#42d5ff")
-        style.map("Accent.TButton", background=[("active", "#1f8fb8")])
-        style.configure("Danger.TButton", background="#3a1823", foreground="#ffd7de", bordercolor="#8f3447")
+        style.configure("TButton", padding=(12, 7), background="#ffffff", foreground=text, bordercolor=line)
+        style.map("TButton", background=[("active", "#eef2ff")], foreground=[("active", text)])
+        style.configure("Accent.TButton", background="#2563eb", foreground="#ffffff", bordercolor=accent)
+        style.map("Accent.TButton", background=[("active", "#1d4ed8")])
+        style.configure("Danger.TButton", background="#fff1f2", foreground=danger, bordercolor="#fecdd3")
+        style.map("Danger.TButton", background=[("active", "#ffe4e6")])
+        style.configure("Success.TButton", background="#ecfdf5", foreground=green, bordercolor="#bbf7d0")
+        style.map("Success.TButton", background=[("active", "#d1fae5")])
 
     def _build(self) -> None:
         outer = ttk.Frame(self)
         outer.pack(fill="both", expand=True)
 
-        canvas = tk.Canvas(outer, bg="#07111f", highlightthickness=0, borderwidth=0)
+        canvas = tk.Canvas(outer, bg="#f5f7fb", highlightthickness=0, borderwidth=0)
         scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
 
@@ -286,6 +299,7 @@ class ControlCenter(tk.Tk):
         ).pack(anchor="w", pady=(4, 0))
 
         self._build_active_area(content)
+        self._build_roadmap_area(content)
         self._build_runtime_area(content)
         self._build_controls(content)
         self._build_tools(content)
@@ -293,14 +307,14 @@ class ControlCenter(tk.Tk):
 
     def card(self, parent, title: str, kicker: str = "") -> ttk.Frame:
         label = f"{kicker} / {title}" if kicker else title
-        frame = ttk.LabelFrame(parent, text=label, style="Card.TLabelframe", padding=16)
+        frame = ttk.LabelFrame(parent, text=label, style="Card.TLabelframe", padding=18)
         return frame
 
     def metric(self, parent, label: str, variable: tk.StringVar, row: int, col: int) -> None:
-        box = ttk.Frame(parent, style="Card.TFrame", padding=10)
-        box.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
-        ttk.Label(box, text=label, style="Muted.TLabel").pack(anchor="w")
-        ttk.Label(box, textvariable=variable, style="Value.TLabel").pack(anchor="w", pady=(4, 0))
+        box = ttk.Frame(parent, style="Metric.TFrame", padding=12)
+        box.grid(row=row, column=col, sticky="nsew", padx=7, pady=7)
+        ttk.Label(box, text=label, style="MetricMuted.TLabel").pack(anchor="w")
+        ttk.Label(box, textvariable=variable, style="MetricValue.TLabel").pack(anchor="w", pady=(5, 0))
 
     def _build_active_area(self, parent) -> None:
         area = ttk.Frame(parent)
@@ -331,6 +345,17 @@ class ControlCenter(tk.Tk):
         candidate = self.card(area, "最新候选回测", "LATEST CANDIDATE")
         candidate.grid(row=0, column=1, sticky="nsew")
         ttk.Label(candidate, textvariable=self.active_vars["latest_candidate"], style="Value.TLabel", wraplength=360).pack(anchor="w")
+
+    def _build_roadmap_area(self, parent) -> None:
+        frame = self.card(parent, "项目标记", "ROADMAP")
+        frame.pack(fill="x", pady=(0, 14))
+        ttk.Label(
+            frame,
+            textvariable=self.roadmap_var,
+            style="Value.TLabel",
+            wraplength=1320,
+            justify="left",
+        ).pack(anchor="w")
 
     def _build_runtime_area(self, parent) -> None:
         area = ttk.Frame(parent)
@@ -420,6 +445,14 @@ class ControlCenter(tk.Tk):
             pady=6,
             sticky="w",
         )
+        intro_index = github_index + 1
+        ttk.Button(frame, text="打开项目新介绍", style="Success.TButton", command=lambda: self.open_path(PROJECT_INTRO_ZH)).grid(
+            row=intro_index // 5,
+            column=intro_index % 5,
+            padx=6,
+            pady=6,
+            sticky="w",
+        )
         for col in range(5):
             frame.columnconfigure(col, weight=1)
 
@@ -429,9 +462,9 @@ class ControlCenter(tk.Tk):
         self.output = tk.Text(
             frame,
             height=8,
-            bg="#050b14",
-            fg="#dbeafe",
-            insertbackground="#dbeafe",
+            bg="#ffffff",
+            fg="#0f172a",
+            insertbackground="#0f172a",
             relief="flat",
             padx=12,
             pady=10,
@@ -445,6 +478,7 @@ class ControlCenter(tk.Tk):
         for name in self.status_vars:
             self.status_vars[name].set(daemon_summary(f"factor-daemon-{name}"))
         self.refresh_active_factor()
+        self.refresh_roadmap()
         self.refresh_remote_status()
 
     def refresh_active_factor(self) -> None:
@@ -478,6 +512,31 @@ class ControlCenter(tk.Tk):
                 zip=latest.get("latest_backtest", "n/a"),
             )
         )
+
+    def refresh_roadmap(self) -> None:
+        roadmap = load_json(PROJECT_ROADMAP, {"items": []})
+        items = roadmap.get("items") if isinstance(roadmap, dict) else []
+        if not items:
+            self.roadmap_var.set("暂无项目标记。")
+            return
+        lines = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title") or item.get("id") or "unknown"
+            status = item.get("status_label") or item.get("status") or "unknown"
+            enabled = "已启用" if item.get("enabled") else "未启用"
+            summary = item.get("summary") or ""
+            current = item.get("current_state") or ""
+            next_step = item.get("next_step") or ""
+            lines.append(f"{title}：{status}（{enabled}）")
+            if summary:
+                lines.append(f"说明：{summary}")
+            if current:
+                lines.append(f"当前：{current}")
+            if next_step:
+                lines.append(f"下一步：{next_step}")
+        self.roadmap_var.set("\n".join(lines) if lines else "暂无项目标记。")
 
     def refresh_remote_status(self) -> None:
         data = load_json(SERVER_SYNC_REPORT) or load_json(SERVER_STATUS_REPORT)

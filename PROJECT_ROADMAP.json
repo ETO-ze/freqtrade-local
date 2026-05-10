@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-05-10",
+  "items": [
+    {
+      "id": "independent_walk_forward_retraining",
+      "title": "完整独立 walk-forward 重训",
+      "title_en": "Independent walk-forward retraining",
+      "status": "planned",
+      "status_label": "规划中，未启用",
+      "priority": "medium",
+      "enabled": false,
+      "safe_to_trade": true,
+      "summary": "把训练期、验证期、测试期、最近窗口拆成独立训练和独立回测，再汇总稳定性评分后决定是否 promotion。",
+      "current_state": "当前已接入分段稳定性评分，但还没有对每个分段做独立重训。",
+      "next_step": "先作为项目标记展示；确认现有稳定性 gate 表现正常后，再设计独立重训的缓存和运行队列。",
+      "affected_modules": [
+        "factor training",
+        "promotion gate",
+        "dashboard",
+        "reports"
+      ]
+    }
+  ]
+}

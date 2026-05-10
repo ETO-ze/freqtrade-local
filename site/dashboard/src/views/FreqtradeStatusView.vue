@@ -11,6 +11,19 @@ const botStateLabel = computed(() => {
   return status.value.bot.running ? 'running' : status.value.bot.status || 'stopped'
 })
 
+const liveTrading = computed(() => status.value?.bot.live_trading)
+
+function shortPair(pair: string) {
+  return pair.replace('/USDT:USDT', '').replace('/USDT', '')
+}
+
+function formatPct(value: unknown) {
+  if (value === undefined || value === null || value === '') return 'n/a'
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return String(value)
+  return `${(numeric * 100).toFixed(2)}%`
+}
+
 async function loadStatus() {
   loading.value = true
   error.value = ''
@@ -93,6 +106,36 @@ onMounted(() => {
           <p>{{ status.sync.selected_pairs.join(', ') || 'none' }}</p>
         </div>
       </div>
+    </article>
+
+    <article class="panel span-3" v-if="status">
+      <p class="panel-kicker">LIVE POSITIONS</p>
+      <h3>实盘持仓只读摘要</h3>
+      <div v-if="!liveTrading" class="info-banner">当前状态 JSON 暂未包含持仓详情。</div>
+      <div v-else-if="liveTrading.error" class="info-banner is-error">
+        持仓读取失败：{{ liveTrading.error }}
+      </div>
+      <template v-else>
+        <div class="key-grid">
+          <div><span>持仓数量</span><strong>{{ liveTrading.open_trade_count ?? 'n/a' }}</strong></div>
+          <div><span>浮动收益</span><strong>{{ liveTrading.total_profit_abs ?? 'n/a' }}</strong></div>
+          <div><span>浮动收益率</span><strong>{{ formatPct(liveTrading.total_profit_ratio) }}</strong></div>
+          <div><span>持仓币种</span><strong>{{ liveTrading.open_trade_pairs?.map(shortPair).join(', ') || 'none' }}</strong></div>
+        </div>
+        <div class="list-table" v-if="liveTrading.trades?.length">
+          <div v-for="trade in liveTrading.trades" :key="`${trade.pair}-${trade.open_date}`" class="list-row multi">
+            <div>
+              <strong>{{ shortPair(trade.pair) }} / {{ trade.is_short ? 'SHORT' : 'LONG' }}</strong>
+              <p>
+                收益 {{ trade.profit_abs ?? 'n/a' }} |
+                收益率 {{ formatPct(trade.profit_ratio) }} |
+                杠杆 {{ trade.leverage ?? 'n/a' }} |
+                开仓 {{ trade.open_date || 'n/a' }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </template>
     </article>
   </section>
 </template>

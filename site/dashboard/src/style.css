@@ -1,11 +1,14 @@
 :root {
+  --dashboard-bg-image: url('/dashboard/assets/dashboard-btc-nexus-bg.png?v=20260509a');
   font-family:
     'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   color: #e9f6ff;
   background:
-    radial-gradient(circle at 15% 20%, rgba(61, 179, 255, 0.18), transparent 30%),
-    radial-gradient(circle at 82% 16%, rgba(59, 130, 246, 0.18), transparent 28%),
-    radial-gradient(circle at 50% 100%, rgba(19, 201, 207, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(5, 10, 24, 0.22) 0%, rgba(5, 10, 24, 0.78) 58%, rgba(5, 10, 24, 0.96) 100%),
+    radial-gradient(circle at 15% 20%, rgba(61, 179, 255, 0.14), transparent 30%),
+    radial-gradient(circle at 82% 16%, rgba(59, 130, 246, 0.14), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(19, 201, 207, 0.1), transparent 30%),
+    var(--dashboard-bg-image) center top / cover fixed no-repeat,
     #08111f;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -54,10 +57,11 @@ select {
   inset: 0;
   pointer-events: none;
   background-image:
+    linear-gradient(90deg, rgba(3, 8, 23, 0.64), transparent 24%, transparent 72%, rgba(3, 8, 23, 0.48)),
     linear-gradient(rgba(97, 227, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(97, 227, 255, 0.05) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(circle at center, black 45%, transparent 100%);
+  background-size: auto, 48px 48px, 48px 48px;
+  mask-image: linear-gradient(180deg, black 0%, rgba(0, 0, 0, 0.82) 62%, transparent 100%);
 }
 
 .app-shell {
@@ -73,7 +77,7 @@ select {
   gap: 28px;
   padding: 32px 24px;
   border-right: 1px solid rgba(97, 227, 255, 0.12);
-  background: rgba(7, 16, 31, 0.84);
+  background: rgba(7, 16, 31, 0.88);
   backdrop-filter: blur(24px);
 }
 
@@ -199,6 +203,7 @@ select {
   gap: 24px;
   padding: 28px 32px 20px;
   border-bottom: 1px solid rgba(97, 227, 255, 0.08);
+  background: linear-gradient(180deg, rgba(7, 16, 31, 0.54), rgba(7, 16, 31, 0));
 }
 
 .topbar h2 {
@@ -473,6 +478,127 @@ select {
   color: #f7fbff;
 }
 
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.chart-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(97, 227, 255, 0.08);
+  background: rgba(8, 18, 34, 0.68);
+}
+
+.chart-card span {
+  display: block;
+  margin-bottom: 12px;
+  color: rgba(215, 235, 255, 0.72);
+}
+
+.line-chart {
+  width: 100%;
+  height: 210px;
+  overflow: visible;
+}
+
+.line-chart polyline {
+  fill: none;
+  stroke: #69d8ff;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 8px rgba(105, 216, 255, 0.32));
+}
+
+.line-chart.danger polyline {
+  stroke: #ff7a9c;
+  filter: drop-shadow(0 0 8px rgba(255, 122, 156, 0.28));
+}
+
+.bar-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.bar-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: #f7fbff;
+}
+
+.bar-row-head span {
+  color: rgba(215, 235, 255, 0.72);
+}
+
+.bar-track {
+  height: 10px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.bar-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #21d19f, #69d8ff);
+}
+
+.bar-track i.negative {
+  background: linear-gradient(90deg, #ff7a9c, #ffbf5e);
+}
+
+.heat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.heat-cell {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(97, 227, 255, 0.08);
+  background: rgba(8, 18, 34, 0.68);
+}
+
+.heat-cell span,
+.heat-cell small {
+  display: block;
+  color: rgba(215, 235, 255, 0.68);
+}
+
+.heat-cell strong {
+  display: block;
+  margin: 6px 0 3px;
+  color: #f7fbff;
+}
+
+.heat-cell.is-profit {
+  background: rgba(25, 105, 84, 0.58);
+}
+
+.heat-cell.is-strong-profit {
+  background: rgba(21, 143, 101, 0.78);
+}
+
+.heat-cell.is-loss {
+  background: rgba(97, 39, 52, 0.62);
+}
+
+.heat-cell.is-strong-loss {
+  background: rgba(129, 31, 53, 0.78);
+}
+
+.compact-table {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 1100px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -491,6 +617,11 @@ select {
 @media (max-width: 920px) {
   .page-grid,
   .page-grid.two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-grid,
+  .compact-table {
     grid-template-columns: 1fr;
   }
 
@@ -518,6 +649,10 @@ select {
 
   .key-grid {
     grid-template-columns: 1fr;
+  }
+
+  .heat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .service-item {

@@ -18,6 +18,21 @@ export interface DashboardStatusPayload {
     listen_port: number
     pair_count: number
     tradable_pairs: string[]
+    live_trading?: {
+      open_trade_count: number | null
+      open_trade_pairs: string[]
+      total_profit_abs?: number | null
+      total_profit_ratio?: number | null
+      trades?: Array<{
+        pair: string
+        profit_abs?: number | null
+        profit_ratio?: number | null
+        is_short?: boolean
+        open_date?: string
+        leverage?: number | null
+      }>
+      error?: string
+    }
   }
   api: {
     healthy: boolean
