@@ -1,4 +1,4 @@
-﻿<h1 align="center">OpenClaw + Freqtrade Quant Control Platform</h1>
+<h1 align="center">OpenClaw + Freqtrade Quant Control Platform</h1>
 
 <p align="center">
   <img src="assets/openclaw-freqtrade-icon.png" alt="OpenClaw + Freqtrade" width="160" />
@@ -29,12 +29,12 @@
     <img src="https://img.shields.io/badge/Dashboard-Read%20Only-06b6d4?style=for-the-badge" alt="Dashboard" />
   </a>
   <a href="README.zh-CN.md">
-    <img src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-README-ef4444?style=for-the-badge" alt="涓枃 README" />
+    <img src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-README-ef4444?style=for-the-badge" alt="中文 README" />
   </a>
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> | <a href="README.zh-CN.md">涓枃</a>
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">中文</a>
 </p>
 
 OpenClaw + Freqtrade is a local-to-cloud quantitative trading research platform. The local machine handles data refresh, altcoin universe screening, multi-model factor training, backtesting, approval, and runtime policy generation. The server runs the protected Freqtrade bot and exposes read-only public dashboards.

@@ -1,4 +1,4 @@
-﻿<h1 align="center">OpenClaw + Freqtrade 本地量化交易控制平台</h1>
+<h1 align="center">OpenClaw + Freqtrade 本地量化交易控制平台</h1>
 
 <p align="center">
   <img src="assets/openclaw-freqtrade-icon.png" alt="OpenClaw + Freqtrade" width="160" />
@@ -165,7 +165,7 @@ flowchart LR
 ### GUI 总控中心
 
 ```powershell
-cmd /c "D:\Playground\freqtrade-local\OpenClaw Control Center GUI.cmd"
+cmd /c "D:\Playground\freqtrade-local\launchers\OpenClaw Control Center GUI.cmd"
 ```
 
 主要功能：
@@ -189,7 +189,7 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\w
 ### 策略调试面板
 
 ```powershell
-cmd /c "D:\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd"
+cmd /c "D:\Playground\freqtrade-local\launchers\Launch Strategy Debug Lab.cmd"
 ```
 
 打开：
@@ -217,7 +217,7 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\w
 ### 同步服务器
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\sync-openclaw-runtime-to-server.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\sync-openclaw-runtime-to-server.ps1
 ```
 
 ### 云端持仓同步
