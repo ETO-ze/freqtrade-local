@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { fetchDashboardStatus, type DashboardStatusPayload } from '../lib/dashboard-status'
 
 const loading = ref(true)
 const error = ref('')
 const status = ref<DashboardStatusPayload | null>(null)
+let refreshTimer: number | undefined
 
 const botStateLabel = computed(() => {
   if (!status.value) return 'unknown'
@@ -24,6 +25,46 @@ function formatPct(value: unknown) {
   return `${(numeric * 100).toFixed(2)}%`
 }
 
+function formatAmount(value: unknown, currency = '') {
+  if (value === undefined || value === null || value === '') return 'n/a'
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return String(value)
+  const suffix = currency ? ` ${currency}` : ''
+  return `${numeric.toFixed(4)}${suffix}`
+}
+
+function formatDateTime(value: unknown) {
+  if (!value) return 'n/a'
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) return String(value)
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${lookup.year}-${lookup.month}-${lookup.day} ${lookup.hour}:${lookup.minute}:${lookup.second}`
+}
+
+function numericTone(value: unknown) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric === 0) return ''
+  return numeric > 0 ? 'is-positive' : 'is-negative'
+}
+
+function directionLabel(isShort?: boolean) {
+  return isShort ? '空头' : '多头'
+}
+
+function directionClass(isShort?: boolean) {
+  return isShort ? 'is-short' : 'is-long'
+}
+
 async function loadStatus() {
   loading.value = true
   error.value = ''
@@ -38,6 +79,11 @@ async function loadStatus() {
 
 onMounted(() => {
   loadStatus()
+  refreshTimer = window.setInterval(loadStatus, 30000)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer)
 })
 </script>
 
@@ -116,22 +162,54 @@ onMounted(() => {
         持仓读取失败：{{ liveTrading.error }}
       </div>
       <template v-else>
-        <div class="key-grid">
-          <div><span>持仓数量</span><strong>{{ liveTrading.open_trade_count ?? 'n/a' }}</strong></div>
-          <div><span>浮动收益</span><strong>{{ liveTrading.total_profit_abs ?? 'n/a' }}</strong></div>
-          <div><span>浮动收益率</span><strong>{{ formatPct(liveTrading.total_profit_ratio) }}</strong></div>
-          <div><span>持仓币种</span><strong>{{ liveTrading.open_trade_pairs?.map(shortPair).join(', ') || 'none' }}</strong></div>
+        <div class="position-summary-grid">
+          <div class="position-metric is-primary" :class="numericTone(liveTrading.cumulative_profit_abs)">
+            <span>总收益</span>
+            <strong>{{ formatAmount(liveTrading.cumulative_profit_abs, liveTrading.profit_currency) }}</strong>
+            <small>{{ formatPct(liveTrading.cumulative_profit_ratio) }}</small>
+          </div>
+          <div class="position-metric" :class="numericTone(liveTrading.closed_profit_abs)">
+            <span>已平仓收益</span>
+            <strong>{{ formatAmount(liveTrading.closed_profit_abs, liveTrading.profit_currency) }}</strong>
+            <small>{{ liveTrading.closed_trade_count ?? 'n/a' }} 笔已平仓</small>
+          </div>
+          <div class="position-metric" :class="numericTone(liveTrading.total_profit_abs)">
+            <span>当前浮动收益</span>
+            <strong>{{ formatAmount(liveTrading.total_profit_abs, liveTrading.profit_currency) }}</strong>
+            <small>{{ formatPct(liveTrading.total_profit_ratio) }}</small>
+          </div>
+          <div class="position-metric">
+            <span>当前持仓</span>
+            <strong>{{ liveTrading.open_trade_count ?? 'n/a' }}</strong>
+            <small>{{ liveTrading.open_trade_pairs?.map(shortPair).join(', ') || 'none' }}</small>
+          </div>
+          <div class="position-metric is-wide">
+            <span>持仓同步时间</span>
+            <strong>{{ formatDateTime(liveTrading.synced_at) }}</strong>
+          </div>
         </div>
         <div class="list-table" v-if="liveTrading.trades?.length">
-          <div v-for="trade in liveTrading.trades" :key="`${trade.pair}-${trade.open_date}`" class="list-row multi">
+          <div v-for="trade in liveTrading.trades" :key="`${trade.pair}-${trade.open_date}`" class="position-row">
             <div>
-              <strong>{{ shortPair(trade.pair) }} / {{ trade.is_short ? 'SHORT' : 'LONG' }}</strong>
-              <p>
-                收益 {{ trade.profit_abs ?? 'n/a' }} |
-                收益率 {{ formatPct(trade.profit_ratio) }} |
-                杠杆 {{ trade.leverage ?? 'n/a' }} |
-                开仓 {{ trade.open_date || 'n/a' }}
-              </p>
+              <div class="position-row-head">
+                <strong>{{ shortPair(trade.pair) }}</strong>
+                <span class="direction-pill" :class="directionClass(trade.is_short)">
+                  {{ directionLabel(trade.is_short) }}
+                </span>
+                <span class="leverage-pill">{{ trade.leverage ?? 'n/a' }}x</span>
+              </div>
+              <p>开仓 {{ trade.open_date || 'n/a' }}</p>
+            </div>
+            <div class="position-row-metrics">
+              <span :class="numericTone(trade.profit_abs)">
+                收益 <strong>{{ formatAmount(trade.profit_abs, liveTrading.profit_currency) }}</strong>
+              </span>
+              <span :class="numericTone(trade.profit_ratio)">
+                收益率 <strong>{{ formatPct(trade.profit_ratio) }}</strong>
+              </span>
+              <span>开仓价 <strong>{{ trade.open_rate ?? 'n/a' }}</strong></span>
+              <span>当前价 <strong>{{ trade.current_rate ?? 'n/a' }}</strong></span>
+              <span>仓位 <strong>{{ formatAmount(trade.stake_amount, liveTrading.profit_currency) }}</strong></span>
             </div>
           </div>
         </div>

@@ -19,16 +19,29 @@ export interface DashboardStatusPayload {
     pair_count: number
     tradable_pairs: string[]
     live_trading?: {
+      synced_at?: string
       open_trade_count: number | null
       open_trade_pairs: string[]
       total_profit_abs?: number | null
       total_profit_ratio?: number | null
+      cumulative_profit_abs?: number | null
+      cumulative_profit_ratio?: number | null
+      closed_profit_abs?: number | null
+      closed_profit_ratio?: number | null
+      closed_trade_count?: number | null
+      profit_currency?: string
+      profit_error?: string | null
       trades?: Array<{
         pair: string
+        trade_id?: string | number
         profit_abs?: number | null
         profit_ratio?: number | null
         is_short?: boolean
         open_date?: string
+        stake_amount?: number | null
+        amount?: number | null
+        open_rate?: number | null
+        current_rate?: number | null
         leverage?: number | null
       }>
       error?: string

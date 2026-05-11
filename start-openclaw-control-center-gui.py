@@ -425,6 +425,7 @@ class ControlCenter(tk.Tk):
             ("打开 Telegram 模板", lambda: webbrowser.open("http://127.0.0.1:8503")),
             ("探测服务器", self.probe_server_status),
             ("同步到服务器", self.sync_to_server),
+            ("安装云端持仓同步", self.install_position_sync),
             ("打开本地 API", lambda: webbrowser.open("http://127.0.0.1:8081")),
             ("打开云端入口", lambda: webbrowser.open("https://duskrain.cn/")),
             ("打开报告目录", lambda: subprocess.Popen(["explorer", str(REPORT_ROOT)])),
@@ -636,6 +637,14 @@ class ControlCenter(tk.Tk):
                 "manual-gui",
             ],
             label="同步当前 active 配置到服务器",
+        )
+
+    def install_position_sync(self) -> None:
+        self.run_and_report(
+            "install-server-position-sync.ps1",
+            ["-IntervalSeconds", "60", "-RunOnce"],
+            label="安装云端持仓同步",
+            timeout=180,
         )
 
     def sync_to_github(self) -> None:

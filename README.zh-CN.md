@@ -1,8 +1,41 @@
-# OpenClaw + Freqtrade 本地量化交易控制平台
+<h1 align="center">OpenClaw + Freqtrade 本地量化交易控制平台</h1>
 
-![OpenClaw + Freqtrade 图标](assets/openclaw-freqtrade-icon.png)
+<p align="center">
+  <img src="assets/openclaw-freqtrade-icon.png" alt="OpenClaw + Freqtrade" width="160" />
+</p>
 
-[English](README.md) | [中文](README.zh-CN.md)
+<p align="center">
+  本地因子研究、动态山寨币筛选、Freqtrade 云端执行、只读实盘看板。
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/OpenClaw-%E5%9B%A0%E5%AD%90%E5%BC%95%E6%93%8E-38bdf8?style=for-the-badge" alt="OpenClaw 因子引擎" />
+  <img src="https://img.shields.io/badge/Freqtrade-%E5%AE%9E%E7%9B%98%E6%9C%BA%E5%99%A8%E4%BA%BA-22c55e?style=for-the-badge" alt="Freqtrade 实盘机器人" />
+  <img src="https://img.shields.io/badge/%E7%AD%96%E7%95%A5-AlternativeHunter-f97316?style=for-the-badge" alt="AlternativeHunter 策略" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-3776ab?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/Vue-3-42b883?style=for-the-badge&logo=vuedotjs&logoColor=white" alt="Vue 3" />
+  <img src="https://img.shields.io/badge/Docker-%E4%BA%91%E7%AB%AF%E8%BF%90%E8%A1%8C-2496ed?style=for-the-badge&logo=docker&logoColor=white" alt="Docker 云端运行" />
+  <img src="https://img.shields.io/badge/OKX-USDT%20%E5%90%88%E7%BA%A6-111827?style=for-the-badge" alt="OKX USDT 合约" />
+</p>
+
+<p align="center">
+  <a href="https://duskrain.cn">
+    <img src="https://img.shields.io/badge/%E9%A6%96%E9%A1%B5-%E8%AE%BF%E9%97%AE%E7%BD%91%E7%AB%99-0ea5e9?style=for-the-badge" alt="访问首页" />
+  </a>
+  <a href="https://duskrain.cn/dashboard/">
+    <img src="https://img.shields.io/badge/%E7%9C%8B%E6%9D%BF-%E5%8F%AA%E8%AF%BB%E7%9B%91%E6%8E%A7-06b6d4?style=for-the-badge" alt="只读看板" />
+  </a>
+  <a href="README.md">
+    <img src="https://img.shields.io/badge/English-README-ef4444?style=for-the-badge" alt="English README" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">中文</a>
+</p>
 
 OpenClaw + Freqtrade 是一套“本地研究 + 云端执行”的个人量化交易控制平台。本地机器负责行情回补、动态山寨币池筛选、多模型因子训练、回测、审批和运行时策略配置生成；服务器负责运行受保护的 Freqtrade 机器人，并对外展示只读看板。
 
@@ -176,6 +209,14 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-open
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\sync-openclaw-runtime-to-server.ps1
+```
+
+### 云端持仓同步
+
+安装或刷新服务器端 `openclaw-dashboard-status-sync.timer`。该定时器会把云端 Freqtrade 机器人状态和实盘持仓只读快照写入 `/dashboard-data/status.json`，Vue 看板会自动刷新读取。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\install-server-position-sync.ps1 -IntervalSeconds 60 -RunOnce
 ```
 
 ### 安全同步 GitHub
