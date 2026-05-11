@@ -1,38 +1,38 @@
-# Telegram Template Lab
+﻿# Telegram Template Lab
 
-用于编辑 `OpenClaw` Telegram 消息模板，并基于当前 stable 报告做预览和测试发送。
+鐢ㄤ簬缂栬緫 `OpenClaw` Telegram 娑堟伅妯℃澘锛屽苟鍩轰簬褰撳墠 stable 鎶ュ憡鍋氶瑙堝拰娴嬭瘯鍙戦€併€?
 
-## 功能
+## 鍔熻兘
 
-- 编辑本地模板文件
-- 预览当前 stable 数据渲染后的消息
-- 查看可用占位符
-- 向 live Telegram 配置发送测试消息
-- 向 sim Telegram 配置发送测试消息
+- 缂栬緫鏈湴妯℃澘鏂囦欢
+- 棰勮褰撳墠 stable 鏁版嵁娓叉煋鍚庣殑娑堟伅
+- 鏌ョ湅鍙敤鍗犱綅绗?
+- 鍚?live Telegram 閰嶇疆鍙戦€佹祴璇曟秷鎭?
+- 鍚?sim Telegram 閰嶇疆鍙戦€佹祴璇曟秷鎭?
 
-## 启动
+## 鍚姩
 
 ```powershell
 cd D:\Playground\freqtrade-local
-py -m streamlit run D:\Playground\freqtrade-local\telegram_template_lab.py --server.address 127.0.0.1 --server.port 8503
+py -m streamlit run D:\Playground\freqtrade-local\apps\streamlit\telegram_template_lab.py --server.address 127.0.0.1 --server.port 8503
 ```
 
-或双击：
+鎴栧弻鍑伙細
 
 `D:\Playground\freqtrade-local\Launch Telegram Template Lab.cmd`
 
-打开：
+鎵撳紑锛?
 
 [http://127.0.0.1:8503](http://127.0.0.1:8503)
 
-## 相关文件
+## 鐩稿叧鏂囦欢
 
-- 面板：`D:\Playground\freqtrade-local\telegram_template_lab.py`
-- 模板：`D:\Playground\freqtrade-local\telegram_message_template.json`
-- live Telegram 配置：`D:\Playground\freqtrade-local\openclaw.notification.json`
-- sim Telegram 配置：`D:\Playground\freqtrade-local\openclaw.notification.sim.json`
+- 闈㈡澘锛歚D:\Playground\freqtrade-local\apps\streamlit\telegram_template_lab.py`
+- 妯℃澘锛歚D:\Playground\freqtrade-local\telegram_message_template.json`
+- live Telegram 閰嶇疆锛歚D:\Playground\freqtrade-local\openclaw.notification.json`
+- sim Telegram 閰嶇疆锛歚D:\Playground\freqtrade-local\openclaw.notification.sim.json`
 
-## 模板占位符
+## 妯℃澘鍗犱綅绗?
 
 - `{{generated_at}}`
 - `{{strategy_name}}`
@@ -47,3 +47,4 @@ py -m streamlit run D:\Playground\freqtrade-local\telegram_template_lab.py --ser
 - `{{observe_pairs}}`
 - `{{pause_pairs}}`
 - `{{combined_report_path}}`
+

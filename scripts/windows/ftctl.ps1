@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Position = 0)]
     [string]$Command = "help",
 
@@ -153,20 +153,20 @@ function Show-Status {
 
 function Invoke-StartDaemon {
     param([string]$Name)
-    $script = Join-Path $RepoRoot ("start-openclaw-factor-daemon-{0}.ps1" -f $Name)
+    $script = Join-Path $ScriptRoot ("start-openclaw-factor-daemon-{0}.ps1" -f $Name)
     if (-not (Test-Path -LiteralPath $script)) { throw "Missing start script: $script" }
     powershell -ExecutionPolicy Bypass -File $script
 }
 
 function Invoke-StopDaemon {
     param([string]$Name)
-    $script = Join-Path $RepoRoot ("stop-openclaw-factor-daemon-{0}.ps1" -f $Name)
+    $script = Join-Path $ScriptRoot ("stop-openclaw-factor-daemon-{0}.ps1" -f $Name)
     if (-not (Test-Path -LiteralPath $script)) { throw "Missing stop script: $script" }
     powershell -ExecutionPolicy Bypass -File $script
 }
 
 function Start-Gui {
-    $script = Join-Path $RepoRoot "start-openclaw-control-center-gui.py"
+    $script = Join-Path $RepoRoot "apps\desktop\control_center_gui.py"
     if (-not (Test-Path -LiteralPath $script)) { throw "Missing GUI script: $script" }
     Start-Process powershell -WindowStyle Hidden -ArgumentList @(
         "-ExecutionPolicy", "Bypass",
@@ -175,7 +175,7 @@ function Start-Gui {
 }
 
 function Start-Dashboard {
-    $script = Join-Path $RepoRoot "start-factor-lab.ps1"
+    $script = Join-Path $ScriptRoot "start-factor-lab.ps1"
     if (-not (Test-Path -LiteralPath $script)) { throw "Missing dashboard script: $script" }
     Start-Process powershell -WindowStyle Hidden -ArgumentList @(
         "-ExecutionPolicy", "Bypass",
@@ -203,9 +203,11 @@ switch ($Command.ToLowerInvariant()) {
     }
     "sync" {
         if ($Target -ne "server") { throw "Usage: ftctl sync server" }
-        $script = Join-Path $RepoRoot "sync-openclaw-runtime-to-server.ps1"
+        $script = Join-Path $ScriptRoot "sync-openclaw-runtime-to-server.ps1"
         if (-not (Test-Path -LiteralPath $script)) { throw "Missing sync script: $script" }
         powershell -ExecutionPolicy Bypass -File $script
     }
     default { Write-Usage; throw "Unknown command: $Command" }
 }
+
+

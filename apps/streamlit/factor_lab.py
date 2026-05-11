@@ -1,19 +1,23 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 import json
 import os
 from pathlib import Path
+import sys
 import zipfile
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from runtime_state import display_daemon_status, duration_label, normalize_daemon_status
 
 
-ROOT = Path(__file__).resolve().parents[2]
 REPORT_ROOT = ROOT / "reports"
 ML_REPORT_ROOT = ROOT / "user_data" / "reports" / "ml"
 BACKTEST_RESULT_ROOT = ROOT / "user_data" / "backtest_results"
@@ -1226,3 +1230,4 @@ with reports_tab:
             st.markdown(approval_text)
         else:
             st.info("Approval report not found.")
+

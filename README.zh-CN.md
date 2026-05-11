@@ -1,4 +1,4 @@
-<h1 align="center">OpenClaw + Freqtrade 本地量化交易控制平台</h1>
+﻿<h1 align="center">OpenClaw + Freqtrade 本地量化交易控制平台</h1>
 
 <p align="center">
   <img src="assets/openclaw-freqtrade-icon.png" alt="OpenClaw + Freqtrade" width="160" />
@@ -40,6 +40,15 @@
 OpenClaw + Freqtrade 是一套“本地研究 + 云端执行”的个人量化交易控制平台。本地机器负责行情回补、动态山寨币池筛选、多模型因子训练、回测、审批和运行时策略配置生成；服务器负责运行受保护的 Freqtrade 机器人，并对外展示只读看板。
 
 这个仓库更接近个人量化研究与自动化工作台，不是开箱即用的交易信号服务。
+
+## 项目新介绍
+
+这个项目已经从“脚本型工作区”升级成“本地量化交易控制平台”。
+
+- 本地链路：刷新并缓存行情数据，生成动态山寨币池，训练因子模型，执行回测和审批，生成 active 配置与运行时策略。
+- 云端链路：运行 Freqtrade，接收通过审批的 active 配置，必要时重启机器人，并发布只读运行状态和持仓快照。
+- 看板链路：展示已批准因子、当前 active 模型、回测指标、实盘 Bot 状态、服务器同步状态、告警和项目路线标记。
+- 总控链路：桌面 GUI 集中处理后台任务控制、本地看板启动、服务器同步、报告查看和安全 GitHub 同步。
 
 ## 项目亮点
 
@@ -170,7 +179,7 @@ cmd /c "D:\Playground\freqtrade-local\OpenClaw Control Center GUI.cmd"
 ### 本地因子看板
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-factor-lab.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-factor-lab.ps1
 ```
 
 打开：
@@ -192,17 +201,17 @@ cmd /c "D:\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd"
 ### 启动后台训练
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-autotune.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-fast.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-stable.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-autotune.ps1
 ```
 
 ### 停止后台训练
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-fast.ps1
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-stable.ps1
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-autotune.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-fast.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-stable.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-autotune.ps1
 ```
 
 ### 同步服务器
@@ -213,28 +222,28 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\sync-open
 
 ### 云端持仓同步
 
-安装或刷新服务器端 `openclaw-dashboard-status-sync.timer`。该定时器会把云端 Freqtrade 机器人状态和实盘持仓只读快照写入 `/dashboard-data/status.json`，Vue 看板会自动刷新读取。
+服务器端 `openclaw-dashboard-status-sync.timer` 会把云端 Freqtrade 机器人状态和实盘持仓只读快照写入 `/dashboard-data/status.json`，Vue 看板会自动刷新读取。该功能已经纳入服务器同步/运行链路，GUI 不再保留单独的“安装云端持仓同步”按钮。下面命令只用于手动维护。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\install-server-position-sync.ps1 -IntervalSeconds 60 -RunOnce
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\install-server-position-sync.ps1 -IntervalSeconds 60 -RunOnce
 ```
 
 ### 安全同步 GitHub
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\sync-github-safe.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\sync-github-safe.ps1
 ```
 
 ## 关键文件
 
-- [start-openclaw-control-center-gui.py](start-openclaw-control-center-gui.py)：本地 GUI 总控。
+- [apps/desktop/control_center_gui.py](apps/desktop/control_center_gui.py)：本地 GUI 总控。
 - [apps/streamlit/factor_lab.py](apps/streamlit/factor_lab.py)：本地只读因子看板实现。
 - [apps/streamlit/strategy_debug_lab.py](apps/streamlit/strategy_debug_lab.py)：策略回测与调试面板实现。
 - [apps/streamlit/telegram_template_lab.py](apps/streamlit/telegram_template_lab.py)：Telegram 模板面板实现。
-- [build_dynamic_alt_universe.py](build_dynamic_alt_universe.py)：动态山寨币池生成器。
-- [evaluate_backtest_stability.py](evaluate_backtest_stability.py)：稳定性与分段回测评估器。
-- [publish_dashboard_public_data.py](publish_dashboard_public_data.py)：公开看板数据发布脚本。
-- [sync_openclaw_runtime_to_server.py](sync_openclaw_runtime_to_server.py)：云端同步辅助脚本。
+- [scripts/workflows/build_dynamic_alt_universe.py](scripts/workflows/build_dynamic_alt_universe.py)：动态山寨币池生成器。
+- [scripts/workflows/evaluate_backtest_stability.py](scripts/workflows/evaluate_backtest_stability.py)：稳定性与分段回测评估器。
+- [scripts/workflows/publish_dashboard_public_data.py](scripts/workflows/publish_dashboard_public_data.py)：公开看板数据发布脚本。
+- [scripts/workflows/sync_openclaw_runtime_to_server.py](scripts/workflows/sync_openclaw_runtime_to_server.py)：云端同步辅助脚本。
 - [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py)：当前山寨主策略。
 - [PROJECT_ROADMAP.json](PROJECT_ROADMAP.json)：项目标记与后续计划。
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：仓库目录结构与整理说明。

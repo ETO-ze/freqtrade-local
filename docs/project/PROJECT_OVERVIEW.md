@@ -1,4 +1,4 @@
-# Project Overview
+﻿# Project Overview
 
 ## What This Project Is
 
@@ -55,3 +55,4 @@ That means:
 2. Improve orthogonal signal contribution
 3. Add stricter noise filtering to dynamic-universe expansion
 4. Keep promotion strict while widening only the research universe
+

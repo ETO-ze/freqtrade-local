@@ -1,77 +1,50 @@
-# OpenClaw + Freqtrade 本地量化交易控制平台
+﻿# OpenClaw + Freqtrade 鏈湴閲忓寲浜ゆ槗鎺у埗骞冲彴
 
-OpenClaw + Freqtrade 是一个面向个人量化实验的本地控制平台。项目把因子训练、币池筛选、回测审批、参数推演、云端同步和交易机器人运行拆成相互隔离的模块，目标是在不频繁手动干预的情况下，持续寻找更适合当前山寨币市场环境的策略配置。
+OpenClaw + Freqtrade 鏄竴涓潰鍚戜釜浜洪噺鍖栧疄楠岀殑鏈湴鎺у埗骞冲彴銆傞」鐩妸鍥犲瓙璁粌銆佸竵姹犵瓫閫夈€佸洖娴嬪鎵广€佸弬鏁版帹婕斻€佷簯绔悓姝ュ拰浜ゆ槗鏈哄櫒浜鸿繍琛屾媶鎴愮浉浜掗殧绂荤殑妯″潡锛岀洰鏍囨槸鍦ㄤ笉棰戠箒鎵嬪姩骞查鐨勬儏鍐典笅锛屾寔缁鎵炬洿閫傚悎褰撳墠灞卞甯佸競鍦虹幆澧冪殑绛栫暐閰嶇疆銆?
+## 褰撳墠瀹氫綅
 
-## 当前定位
+鏈」鐩笉鏄崟涓€绛栫暐鑴氭湰锛岃€屾槸涓€濂楀洿缁?Freqtrade 鐨勬湰鍦伴噺鍖栧伐浣滄祦锛?
+- 鏈湴璐熻矗锛氭暟鎹洖琛ャ€佸姩鎬佸竵姹犵瓫閫夈€佸妯″瀷鍥犲瓙璁粌銆佸洖娴嬨€佸鎵广€佸弬鏁版帹婕斻€佺湅鏉垮睍绀恒€?- 浜戠璐熻矗锛氳繍琛?Freqtrade銆佹墽琛屼氦鏄撱€佹毚闇插彧璇荤姸鎬併€佹帴鏀堕€氳繃瀹℃壒鍚庣殑閰嶇疆鍚屾銆?- GUI 璐熻矗锛氬惎鍔?鍋滄鏈湴鍚庡彴浠诲姟銆佹煡鐪嬬姸鎬併€佹墦寮€鐪嬫澘銆佹墜鍔ㄥ悓姝ユ湇鍔″櫒銆佸悓姝?GitHub銆?
+## 鏍稿績鑳藉姏
 
-本项目不是单一策略脚本，而是一套围绕 Freqtrade 的本地量化工作流：
+### 1. 鍔ㄦ€佸北瀵ㄥ竵姹?
+绯荤粺浼氬畾鏈熸牴鎹繎鏈熷競鍦烘暟鎹瓫閫夊€欓€夊竵锛岄伩鍏嶉暱鏈熷浐瀹氬湪涓€鎵规祦鍔ㄦ€ц“閫€鐨勫竵绉嶄笂銆係table 娴佺▼鏇村亸姝ｅ紡绛涢€夛紝Fast 娴佺▼鏇村亸杞婚噺瑙傚療銆?
+### 2. 澶氭ā鍨嬪洜瀛愯缁?
+褰撳墠鏀寔鏍戞ā鍨嬨€侀殢鏈烘．鏋椼€丠istGradientBoosting銆乆GBoost 绛夋ā鍨嬬粍鍚堛€傛ā鍨嬩細鏍规嵁浠锋牸銆佹尝鍔ㄣ€侀噺鑳姐€佺粨鏋勩€丅TC/ETH 鐩稿寮哄急銆佽祫閲戣垂鐜囧亸绉荤瓑鐗瑰緛鐢熸垚鍊欓€変氦鏄撳洜瀛愩€?
+### 3. 鍥炴祴瀹℃壒涓庝繚鎶?
+鍊欓€夊洜瀛愪笉浼氱洿鎺ヨ鐩栨鍦ㄤ娇鐢ㄧ殑閰嶇疆銆傜郴缁熶細鍏堝洖娴嬶紝鍐嶆寜 gate 鏉′欢鍒ゆ柇鏄惁杩涘叆瀹℃壒鍘嗗彶銆傚綋鍓嶉€昏緫鍊惧悜浼樺厛淇濈暀鍘嗗彶琛ㄧ幇鏇村己鐨勫洜瀛愶紝閬垮厤娌℃湁鏇村ソ缁撴灉鏃堕绻佹浛鎹€?
+### 4. 楂樻敹鐩婇珮椋庨櫓瀹為獙閫氶亾
 
-- 本地负责：数据回补、动态币池筛选、多模型因子训练、回测、审批、参数推演、看板展示。
-- 云端负责：运行 Freqtrade、执行交易、暴露只读状态、接收通过审批后的配置同步。
-- GUI 负责：启动/停止本地后台任务、查看状态、打开看板、手动同步服务器、同步 GitHub。
+灞卞绛栫暐宸叉帴鍏ラ珮鏀剁泭楂橀闄╂ā寮忋€傝妯″紡浼氬湪妯″瀷鍒嗘暟杈冮珮鏃舵彁楂樻潬鏉嗭紝浣嗕粛閫氳繃浠撲綅銆佹渶澶у紑浠撴暟銆佹鎹熷拰鍥炴挙绾︽潫鎺у埗椋庨櫓銆傚畠閫傚悎灏忚祫閲戞祴璇曪紝涓嶅簲鐩存帴瑙嗕负绋冲仴瀹炵洏鏂规銆?
+### 5. 鏈湴涓庝簯绔垎绂?
+鏈湴鏈哄櫒鍙互鎵挎媴杈冮噸鐨勮缁冦€佸洖娴嬪拰绛涢€変换鍔★紱浜戠鍙礋璐ｄ氦鏄撴墽琛屻€傝繖鏍峰彲浠ラ檷浣庢湇鍔″櫒璧勬簮鍘嬪姏锛屼篃閬垮厤璁粌浠诲姟褰卞搷瀹炵洏鏈哄櫒浜虹ǔ瀹氭€с€?
+## 杩愯鍏ュ彛
 
-## 核心能力
+甯哥敤鍏ュ彛锛?
+- GUI 鎬绘帶锛歚OpenClaw Control Center GUI.cmd`
+- 缃戦〉鐪嬫澘锛歚factor_lab.py`
+- 绛栫暐璋冭瘯锛歚strategy_debug_lab.py`
+- Telegram 妯℃澘锛歚telegram_template_lab.py`
+- 鍚姩 Fast锛歚start-openclaw-factor-daemon-fast.ps1`
+- 鍚姩 Stable锛歚start-openclaw-factor-daemon-stable.ps1`
+- 鍚姩 Evolution锛歚start-openclaw-factor-daemon-evolution.ps1`
+- 鍚姩 Autotune锛歚start-openclaw-factor-daemon-autotune.ps1`
+- 鍚屾浜戠锛歚sync-openclaw-runtime-to-server.ps1`
+- 鍚屾 GitHub锛歚sync-github-safe.ps1`
 
-### 1. 动态山寨币池
+## 褰撳墠绛栫暐鐘舵€?
+涓荤瓥鐣ヤ负 `AlternativeHunter`銆傚畠闈㈠悜灞卞甯佹案缁悎绾︼紝閲嶇偣涓嶆槸楂橀浜ゆ槗锛岃€屾槸閫氳繃妯″瀷绛涢€夊竵姹犮€佽秼鍔垮姩閲忋€侀闄╄閬垮拰鍔ㄦ€佹潬鏉嗭紝鍦ㄦ尝鍔ㄧ幆澧冧腑瀵绘壘鏀剁泭鏈轰細銆?
+褰撳墠杩愯鍘熷垯锛?
+- 娌℃湁鏂板洜瀛愯揪鏍囨椂锛屼笉涓诲姩鏇挎崲鐜版湁 active 閰嶇疆銆?- 鏂板洜瀛愭敹鐩婃帴杩戝巻鍙叉渶浼樻椂锛岃繘涓€姝ユ瘮杈冭儨鐜囧拰鍥炴挙銆?- 鏂板洜瀛愭敹鐩婃槑鏄句綆浜庡巻鍙叉渶浼樻椂锛屼繚鐣欏巻鍙茶〃鐜版洿寮虹殑閰嶇疆銆?- 浜戠濡傛灉瀛樺湪鎸佷粨锛屽悓姝ョ瓥鐣ユ椂搴斾紭鍏堥伩鍏嶅己鍒堕噸鍚€犳垚寮傚父銆?
+## 椋庨櫓璇存槑
 
-系统会定期根据近期市场数据筛选候选币，避免长期固定在一批流动性衰退的币种上。Stable 流程更偏正式筛选，Fast 流程更偏轻量观察。
+鏈」鐩敤浜庨噺鍖栫爺绌跺拰灏忚祫閲戦獙璇併€傚北瀵ㄥ竵娉㈠姩澶с€佹粦鐐归珮銆佹祦鍔ㄦ€у彉鍖栧揩锛屽巻鍙插洖娴嬩笉鑳戒唬琛ㄦ湭鏉ユ敹鐩娿€傞珮鏉犳潌妯″紡鍙€傚悎瀹為獙璐︽埛锛屼笉寤鸿鐩存帴鐢ㄤ簬澶ц祫閲戙€?
+## 鍚庣画浼樺寲鏂瑰悜
 
-### 2. 多模型因子训练
-
-当前支持树模型、随机森林、HistGradientBoosting、XGBoost 等模型组合。模型会根据价格、波动、量能、结构、BTC/ETH 相对强弱、资金费率偏移等特征生成候选交易因子。
-
-### 3. 回测审批与保护
-
-候选因子不会直接覆盖正在使用的配置。系统会先回测，再按 gate 条件判断是否进入审批历史。当前逻辑倾向优先保留历史表现更强的因子，避免没有更好结果时频繁替换。
-
-### 4. 高收益高风险实验通道
-
-山寨策略已接入高收益高风险模式。该模式会在模型分数较高时提高杠杆，但仍通过仓位、最大开仓数、止损和回撤约束控制风险。它适合小资金测试，不应直接视为稳健实盘方案。
-
-### 5. 本地与云端分离
-
-本地机器可以承担较重的训练、回测和筛选任务；云端只负责交易执行。这样可以降低服务器资源压力，也避免训练任务影响实盘机器人稳定性。
-
-## 运行入口
-
-常用入口：
-
-- GUI 总控：`OpenClaw Control Center GUI.cmd`
-- 网页看板：`factor_lab.py`
-- 策略调试：`strategy_debug_lab.py`
-- Telegram 模板：`telegram_template_lab.py`
-- 启动 Fast：`start-openclaw-factor-daemon-fast.ps1`
-- 启动 Stable：`start-openclaw-factor-daemon-stable.ps1`
-- 启动 Evolution：`start-openclaw-factor-daemon-evolution.ps1`
-- 启动 Autotune：`start-openclaw-factor-daemon-autotune.ps1`
-- 同步云端：`sync-openclaw-runtime-to-server.ps1`
-- 同步 GitHub：`sync-github-safe.ps1`
-
-## 当前策略状态
-
-主策略为 `AlternativeHunter`。它面向山寨币永续合约，重点不是高频交易，而是通过模型筛选币池、趋势动量、风险规避和动态杠杆，在波动环境中寻找收益机会。
-
-当前运行原则：
-
-- 没有新因子达标时，不主动替换现有 active 配置。
-- 新因子收益接近历史最优时，进一步比较胜率和回撤。
-- 新因子收益明显低于历史最优时，保留历史表现更强的配置。
-- 云端如果存在持仓，同步策略时应优先避免强制重启造成异常。
-
-## 风险说明
-
-本项目用于量化研究和小资金验证。山寨币波动大、滑点高、流动性变化快，历史回测不能代表未来收益。高杠杆模式只适合实验账户，不建议直接用于大资金。
-
-## 后续优化方向
-
-- 将 GUI 从 Tkinter 逐步升级为独立本地 Web 控制台。
-- 将训练任务从脚本调度迁移到统一任务队列。
-- 增强 long history cache，减少重复回补和重复特征计算。
-- 增加实盘交易结果反馈，让模型可以分析每笔交易成败。
-- 增强服务器只读状态同步，减少本地与云端状态不一致。
-## Project Marker: Independent Walk-forward Retraining
+- 灏?GUI 浠?Tkinter 閫愭鍗囩骇涓虹嫭绔嬫湰鍦?Web 鎺у埗鍙般€?- 灏嗚缁冧换鍔′粠鑴氭湰璋冨害杩佺Щ鍒扮粺涓€浠诲姟闃熷垪銆?- 澧炲己 long history cache锛屽噺灏戦噸澶嶅洖琛ュ拰閲嶅鐗瑰緛璁＄畻銆?- 澧炲姞瀹炵洏浜ゆ槗缁撴灉鍙嶉锛岃妯″瀷鍙互鍒嗘瀽姣忕瑪浜ゆ槗鎴愯触銆?- 澧炲己鏈嶅姟鍣ㄥ彧璇荤姸鎬佸悓姝ワ紝鍑忓皯鏈湴涓庝簯绔姸鎬佷笉涓€鑷淬€?## Project Marker: Independent Walk-forward Retraining
 
 - Status: planned, not enabled.
 - Current state: segmented stability scoring is already connected to the approval gate.
 - Next step: split train / validation / test / recent windows into independent retraining and independent backtests, then merge the scores before promotion.
 - Safety note: this marker is display-only and does not change cloud trading behavior.
+

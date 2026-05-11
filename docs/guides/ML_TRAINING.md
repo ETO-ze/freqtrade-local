@@ -1,4 +1,4 @@
-# Tree Model Training
+﻿# Tree Model Training
 
 This workflow trains tree-based models on local OKX futures data.
 
@@ -26,3 +26,4 @@ Supported model keys:
 - `rf`: `RandomForestClassifier`
 - `lgbm`: `LGBMClassifier` when `lightgbm` is installed
 - `hgb`: `HistGradientBoostingClassifier`
+

@@ -1,4 +1,4 @@
-# OpenClaw + Freqtrade Local Guide
+﻿# OpenClaw + Freqtrade Local Guide
 
 ## Overview
 
@@ -126,7 +126,7 @@ Reference outputs:
 
 ## Telegram Bot
 
-- Name: `OpenClaw小阳`
+- Name: `OpenClaw灏忛槼`
 - Username: `@opendusk_bot`
 - Bot ID: `8708596011`
 
@@ -135,79 +135,79 @@ Reference outputs:
 Dashboard:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-factor-lab.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-factor-lab.ps1
 ```
 
 Fast daemon:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-fast.ps1
 ```
 
 Stable daemon:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-stable.ps1
 ```
 
 Stop fast daemon:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-fast.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-fast.ps1
 ```
 
 Stop stable daemon:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-stable.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-stable.ps1
 ```
 
 Start evolution daemon:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-evolution.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-evolution.ps1
 ```
 
 Stop evolution daemon:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-evolution.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-evolution.ps1
 ```
 
 Run startup workflow:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-on-login.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-on-login.ps1
 ```
 
 Start approved Freqtrade dry-run bot:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-auto-bot.ps1
 ```
 
 Start mainstream dry-run bot:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-mainstream-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-mainstream-auto-bot.ps1
 ```
 
 Stop mainstream dry-run bot:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-mainstream-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-mainstream-auto-bot.ps1
 ```
 
 GUI control center:
 
 ```powershell
-py D:\Playground\freqtrade-local\start-openclaw-control-center-gui.py
+py D:\Playground\freqtrade-local\apps\desktop\control_center_gui.py
 ```
 
 Console control center:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\openclaw-control-center.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\openclaw-control-center.ps1
 ```
 
 ## Quick Launch Files
@@ -301,3 +301,4 @@ Shared run lock:
 - Autotune may briefly show `starting` before switching to its next steady state.
 - The dry-run bot should answer ping on [http://127.0.0.1:8081/api/v1/ping](http://127.0.0.1:8081/api/v1/ping)
 - The mainstream dry-run bot should answer ping on [http://127.0.0.1:8082/api/v1/ping](http://127.0.0.1:8082/api/v1/ping)
+

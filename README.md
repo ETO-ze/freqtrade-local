@@ -1,4 +1,4 @@
-<h1 align="center">OpenClaw + Freqtrade Quant Control Platform</h1>
+﻿<h1 align="center">OpenClaw + Freqtrade Quant Control Platform</h1>
 
 <p align="center">
   <img src="assets/openclaw-freqtrade-icon.png" alt="OpenClaw + Freqtrade" width="160" />
@@ -29,17 +29,26 @@
     <img src="https://img.shields.io/badge/Dashboard-Read%20Only-06b6d4?style=for-the-badge" alt="Dashboard" />
   </a>
   <a href="README.zh-CN.md">
-    <img src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-README-ef4444?style=for-the-badge" alt="中文 README" />
+    <img src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-README-ef4444?style=for-the-badge" alt="涓枃 README" />
   </a>
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> | <a href="README.zh-CN.md">中文</a>
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">涓枃</a>
 </p>
 
 OpenClaw + Freqtrade is a local-to-cloud quantitative trading research platform. The local machine handles data refresh, altcoin universe screening, multi-model factor training, backtesting, approval, and runtime policy generation. The server runs the protected Freqtrade bot and exposes read-only public dashboards.
 
 This repository is designed as a personal research and automation workspace, not a plug-and-play trading signal service.
+
+## Project Introduction
+
+This project has been upgraded from a script-style workspace into a local quantitative trading control platform.
+
+- Local lane: refreshes and caches market data, builds a dynamic altcoin universe, trains factor models, runs backtests, applies approval gates, and prepares runtime policies.
+- Cloud lane: runs Freqtrade, receives approved active configurations, restarts the bot when needed, and publishes read-only runtime/position snapshots.
+- Dashboard lane: shows approved factors, current active model, backtest metrics, live bot status, server sync state, alerts, and project roadmap markers.
+- Control lane: the desktop GUI keeps common actions in one place, including daemon control, local dashboard launch, server sync, report access, and safe GitHub publishing.
 
 ## Highlights
 
@@ -159,7 +168,7 @@ See [PROJECT_ROADMAP.json](PROJECT_ROADMAP.json).
 Open:
 
 ```powershell
-cmd /c "D:\Playground\freqtrade-local\OpenClaw Control Center GUI.cmd"
+cmd /c "D:\Playground\freqtrade-local\launchers\OpenClaw Control Center GUI.cmd"
 ```
 
 Main actions:
@@ -173,7 +182,7 @@ Main actions:
 ### Local Factor Lab
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-factor-lab.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-factor-lab.ps1
 ```
 
 Open:
@@ -183,7 +192,7 @@ Open:
 ### Strategy Debug Lab
 
 ```powershell
-cmd /c "D:\Playground\freqtrade-local\Launch Strategy Debug Lab.cmd"
+cmd /c "D:\Playground\freqtrade-local\launchers\Launch Strategy Debug Lab.cmd"
 ```
 
 Open:
@@ -195,49 +204,49 @@ Open:
 ### Start Background Training
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-fast.ps1
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-stable.ps1
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-factor-daemon-autotune.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-fast.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-stable.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-factor-daemon-autotune.ps1
 ```
 
 ### Stop Background Training
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-fast.ps1
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-stable.ps1
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\stop-openclaw-factor-daemon-autotune.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-fast.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-stable.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-autotune.ps1
 ```
 
 ### Server Sync
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\sync-openclaw-runtime-to-server.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\sync-openclaw-runtime-to-server.ps1
 ```
 
 ### Cloud Position Sync
 
-Installs or refreshes the server-side `openclaw-dashboard-status-sync.timer`. The timer writes the read-only live bot and position snapshot to `/dashboard-data/status.json`, and the Vue dashboard auto-refreshes it.
+The server-side `openclaw-dashboard-status-sync.timer` writes the read-only live bot and position snapshot to `/dashboard-data/status.json`, and the Vue dashboard auto-refreshes it. This is now part of the server sync/runtime workflow, so the GUI no longer needs a separate "install position sync" button. Use the command below only for manual maintenance.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\install-server-position-sync.ps1 -IntervalSeconds 60 -RunOnce
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\install-server-position-sync.ps1 -IntervalSeconds 60 -RunOnce
 ```
 
 ### Safe GitHub Sync
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\sync-github-safe.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\sync-github-safe.ps1
 ```
 
 ## Important Files
 
-- [start-openclaw-control-center-gui.py](start-openclaw-control-center-gui.py): local GUI control center.
+- [apps/desktop/control_center_gui.py](apps/desktop/control_center_gui.py): local GUI control center.
 - [apps/streamlit/factor_lab.py](apps/streamlit/factor_lab.py): local read-only factor dashboard implementation.
 - [apps/streamlit/strategy_debug_lab.py](apps/streamlit/strategy_debug_lab.py): strategy backtest/debug dashboard implementation.
 - [apps/streamlit/telegram_template_lab.py](apps/streamlit/telegram_template_lab.py): Telegram message template dashboard implementation.
-- [build_dynamic_alt_universe.py](build_dynamic_alt_universe.py): dynamic universe builder.
-- [evaluate_backtest_stability.py](evaluate_backtest_stability.py): stability and segmented backtest evaluator.
-- [publish_dashboard_public_data.py](publish_dashboard_public_data.py): dashboard data publisher.
-- [sync_openclaw_runtime_to_server.py](sync_openclaw_runtime_to_server.py): cloud sync helper.
+- [scripts/workflows/build_dynamic_alt_universe.py](scripts/workflows/build_dynamic_alt_universe.py): dynamic universe builder.
+- [scripts/workflows/evaluate_backtest_stability.py](scripts/workflows/evaluate_backtest_stability.py): stability and segmented backtest evaluator.
+- [scripts/workflows/publish_dashboard_public_data.py](scripts/workflows/publish_dashboard_public_data.py): dashboard data publisher.
+- [scripts/workflows/sync_openclaw_runtime_to_server.py](scripts/workflows/sync_openclaw_runtime_to_server.py): cloud sync helper.
 - [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py): active altcoin strategy.
 - [PROJECT_ROADMAP.json](PROJECT_ROADMAP.json): current project markers and planned upgrades.
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): repository layout and organization notes.
@@ -264,3 +273,4 @@ Template files are provided where possible:
 ## Disclaimer
 
 This is a research and small-capital automation project. Crypto futures and altcoins are volatile, illiquid at times, and risky under leverage. Backtests and model scores do not guarantee future returns.
+

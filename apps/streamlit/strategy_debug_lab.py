@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import copy
 import json
@@ -596,3 +596,4 @@ with optimizer_tab:
     if OPTIMIZER_MD_PATH.exists():
         st.subheader("Optimizer Report")
         st.markdown(OPTIMIZER_MD_PATH.read_text(encoding="utf-8"))
+

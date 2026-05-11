@@ -1,4 +1,4 @@
-import json
+﻿import json
 import subprocess
 import base64
 import urllib.error
@@ -240,3 +240,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

@@ -1,4 +1,4 @@
-# OpenClaw Freqtrade Workflow
+﻿# OpenClaw Freqtrade Workflow
 
 Use OpenClaw as the outer control loop and keep the trade-time risk controls in Freqtrade.
 
@@ -47,3 +47,4 @@ Recommended safe workflow:
 3. OpenClaw proposes `tradable / observe / pause` buckets based on multi-window stability plus model edge.
 4. OpenClaw posts the daily summary to Telegram if `openclaw.notification.json` is filled in.
 5. You approve the changes before any dry-run or live config is updated.
+

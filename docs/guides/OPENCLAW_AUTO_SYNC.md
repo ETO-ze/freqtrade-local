@@ -1,4 +1,4 @@
-# OpenClaw Auto Sync
+﻿# OpenClaw Auto Sync
 
 This workflow lets OpenClaw train and screen altcoin factors locally, backtest the candidate set, and only promote it into a dedicated Freqtrade dry-run config when the backtest passes the configured gates.
 
@@ -7,7 +7,7 @@ Files:
 - `D:\Playground\openclaw\scripts\freqtrade-sync-screen-to-config.ps1`
 - `D:\Playground\openclaw\scripts\freqtrade-backtest-openclaw-auto.ps1`
 - `D:\Playground\freqtrade-local\user_data\config.openclaw-auto.json`
-- `D:\Playground\freqtrade-local\start-openclaw-auto-bot.ps1`
+- `D:\Playground\freqtrade-local\scripts\windows\start-openclaw-auto-bot.ps1`
 
 Safe default behavior:
 
@@ -41,5 +41,6 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\openclaw\scripts\freqtrad
 Start the separate bot:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\start-openclaw-auto-bot.ps1
+powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\start-openclaw-auto-bot.ps1
 ```
+
