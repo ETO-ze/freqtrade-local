@@ -35,14 +35,8 @@ APPROVED_HISTORY = REPORT_ROOT / "openclaw-approved-history.json"
 LATEST_BACKTEST = REPORT_ROOT / "openclaw-auto-backtest-latest.json"
 STABLE_APPROVAL_MD = REPORT_ROOT / "openclaw-auto-approval-stable.md"
 MANUAL_PROMOTION_REPORT = REPORT_ROOT / "openclaw-manual-promotion-latest.md"
-ML_REPORT_DIR = ROOT / "user_data" / "reports" / "ml"
-
-GUIDE_PATH = ROOT / "docs" / "guides" / "OPENCLAW_FREQTRADE_GUIDE.md"
-TUNING_GUIDE_PATH = ROOT / "docs" / "guides" / "ALTERNATIVEHUNTER_TUNING_GUIDE_CN.md"
-TELEGRAM_GUIDE_PATH = ROOT / "docs" / "guides" / "TELEGRAM_TEMPLATE_LAB.md"
 README_EN = ROOT / "README.md"
 README_ZH = ROOT / "README.zh-CN.md"
-PROJECT_INTRO_ZH = ROOT / "docs" / "project" / "PROJECT_INTRO.zh-CN.md"
 PROJECT_ROADMAP = ROOT / "PROJECT_ROADMAP.json"
 
 DAEMONS = {
@@ -240,13 +234,14 @@ class ControlCenter(tk.Tk):
         style.configure(".", font=("Microsoft YaHei UI", 10), background=bg, foreground=text)
         style.configure("TFrame", background=bg)
         style.configure("Hero.TFrame", background=bg)
-        style.configure("Card.TFrame", background=panel, relief="solid", borderwidth=1)
-        style.configure("Metric.TFrame", background=panel_2, relief="solid", borderwidth=1)
-        style.configure("Card.TLabelframe", background=panel, bordercolor=line, relief="solid")
+        style.configure("Card.TFrame", background=panel, relief="solid", borderwidth=1, bordercolor="#e2e8f0")
+        style.configure("Metric.TFrame", background=panel_2, relief="solid", borderwidth=1, bordercolor="#d7dee9")
+        style.configure("Card.TLabelframe", background=panel, bordercolor="#e2e8f0", relief="solid", borderwidth=1)
         style.configure(
             "Card.TLabelframe.Label",
             background=bg,
             foreground=accent,
+            padding=(10, 2),
             font=("Microsoft YaHei UI", 10, "bold"),
         )
         style.configure("Title.TLabel", background=bg, foreground=text, font=("Microsoft YaHei UI", 22, "bold"))
@@ -257,14 +252,63 @@ class ControlCenter(tk.Tk):
         style.configure("MetricValue.TLabel", background=panel_2, foreground=text, font=("Microsoft YaHei UI", 13, "bold"))
         style.configure("MetricMuted.TLabel", background=panel_2, foreground=muted, font=("Microsoft YaHei UI", 9))
         style.configure("Muted.TLabel", background=panel, foreground=muted)
-        style.configure("TButton", padding=(12, 7), background="#ffffff", foreground=text, bordercolor=line)
-        style.map("TButton", background=[("active", "#eef2ff")], foreground=[("active", text)])
-        style.configure("Accent.TButton", background="#2563eb", foreground="#ffffff", bordercolor=accent)
-        style.map("Accent.TButton", background=[("active", "#1d4ed8")])
-        style.configure("Danger.TButton", background="#fff1f2", foreground=danger, bordercolor="#fecdd3")
-        style.map("Danger.TButton", background=[("active", "#ffe4e6")])
-        style.configure("Success.TButton", background="#ecfdf5", foreground=green, bordercolor="#bbf7d0")
-        style.map("Success.TButton", background=[("active", "#d1fae5")])
+        style.configure(
+            "TButton",
+            padding=(18, 10),
+            background="#ffffff",
+            foreground=text,
+            bordercolor="#94a3b8",
+            lightcolor="#ffffff",
+            darkcolor="#94a3b8",
+            relief="solid",
+            borderwidth=1,
+            focusthickness=1,
+            focuscolor="#bfdbfe",
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.map(
+            "TButton",
+            background=[("pressed", "#e0e7ff"), ("active", "#f8fafc")],
+            bordercolor=[("pressed", accent), ("active", "#93c5fd")],
+            foreground=[("active", text)],
+            relief=[("pressed", "solid"), ("active", "solid")],
+        )
+        style.configure(
+            "Accent.TButton",
+            background="#2563eb",
+            foreground="#ffffff",
+            bordercolor="#1d4ed8",
+            lightcolor="#2563eb",
+            darkcolor="#1d4ed8",
+            relief="solid",
+            borderwidth=1,
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.map("Accent.TButton", background=[("pressed", "#1e40af"), ("active", "#1d4ed8")], bordercolor=[("active", "#1e40af")], relief=[("pressed", "solid"), ("active", "solid")])
+        style.configure(
+            "Danger.TButton",
+            background="#fff1f2",
+            foreground=danger,
+            bordercolor="#fda4af",
+            lightcolor="#fff1f2",
+            darkcolor="#fda4af",
+            relief="solid",
+            borderwidth=1,
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.map("Danger.TButton", background=[("pressed", "#fecdd3"), ("active", "#ffe4e6")], bordercolor=[("active", "#fb7185")], relief=[("pressed", "solid"), ("active", "solid")])
+        style.configure(
+            "Success.TButton",
+            background="#ecfdf5",
+            foreground=green,
+            bordercolor="#86efac",
+            lightcolor="#ecfdf5",
+            darkcolor="#86efac",
+            relief="solid",
+            borderwidth=1,
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.map("Success.TButton", background=[("pressed", "#a7f3d0"), ("active", "#d1fae5")], bordercolor=[("active", "#4ade80")], relief=[("pressed", "solid"), ("active", "solid")])
 
     def _build(self) -> None:
         outer = ttk.Frame(self)
@@ -294,7 +338,7 @@ class ControlCenter(tk.Tk):
         canvas.bind_all("<MouseWheel>", on_mousewheel)
 
         content = ttk.Frame(root)
-        content.pack(fill="both", expand=True, padx=20, pady=18)
+        content.pack(fill="both", expand=True, padx=24, pady=22)
 
         header = ttk.Frame(content)
         header.pack(fill="x", pady=(0, 16))
@@ -314,12 +358,12 @@ class ControlCenter(tk.Tk):
 
     def card(self, parent, title: str, kicker: str = "") -> ttk.Frame:
         label = f"{kicker} / {title}" if kicker else title
-        frame = ttk.LabelFrame(parent, text=label, style="Card.TLabelframe", padding=18)
+        frame = ttk.LabelFrame(parent, text=label, style="Card.TLabelframe", padding=(22, 18, 22, 20))
         return frame
 
     def metric(self, parent, label: str, variable: tk.StringVar, row: int, col: int) -> None:
-        box = ttk.Frame(parent, style="Metric.TFrame", padding=12)
-        box.grid(row=row, column=col, sticky="nsew", padx=7, pady=7)
+        box = ttk.Frame(parent, style="Metric.TFrame", padding=(14, 12))
+        box.grid(row=row, column=col, sticky="nsew", padx=8, pady=8)
         ttk.Label(box, text=label, style="MetricMuted.TLabel").pack(anchor="w")
         ttk.Label(box, textvariable=variable, style="MetricValue.TLabel").pack(anchor="w", pady=(5, 0))
 
@@ -398,27 +442,28 @@ class ControlCenter(tk.Tk):
             ("启动 Autotune", "autotune", "start", "TButton"),
             ("停止 Autotune", "autotune", "stop", "Danger.TButton"),
         ]
+        control_columns = 4
         for i, (label, daemon, action, style) in enumerate(buttons):
             ttk.Button(
                 frame,
                 text=label,
                 style=style,
                 command=lambda d=daemon, a=action, l=label: self.run_and_report(DAEMONS[d][a], label=l),
-            ).grid(row=i // 4, column=i % 4, padx=6, pady=6, sticky="w")
+            ).grid(row=i // control_columns, column=i % control_columns, padx=6, pady=6, sticky="ew")
         ttk.Button(
             frame,
             text="开启训练加速",
             style="Accent.TButton",
             command=lambda: self.run_and_report("set-openclaw-training-speed.ps1", ["-Mode", "boost"], "开启训练加速"),
-        ).grid(row=2, column=0, padx=6, pady=(12, 6), sticky="w")
+        ).grid(row=2, column=0, padx=6, pady=(12, 6), sticky="ew")
         ttk.Button(
             frame,
             text="恢复常规频率",
             command=lambda: self.run_and_report("set-openclaw-training-speed.ps1", ["-Mode", "normal"], "恢复常规频率"),
-        ).grid(row=2, column=1, padx=6, pady=(12, 6), sticky="w")
-        ttk.Button(frame, text="刷新状态", style="Accent.TButton", command=self.refresh_status).grid(row=2, column=2, padx=6, pady=(12, 6), sticky="w")
-        for col in range(4):
-            frame.columnconfigure(col, weight=1)
+        ).grid(row=2, column=1, padx=6, pady=(12, 6), sticky="ew")
+        ttk.Button(frame, text="刷新状态", style="Accent.TButton", command=self.refresh_status).grid(row=2, column=2, padx=6, pady=(12, 6), sticky="ew")
+        for col in range(control_columns):
+            frame.columnconfigure(col, weight=1, uniform="control")
 
     def _build_tools(self, parent) -> None:
         frame = self.card(parent, "面板、服务器与文档", "TOOLS")
@@ -435,25 +480,23 @@ class ControlCenter(tk.Tk):
             ("打开本地 API", lambda: webbrowser.open("http://127.0.0.1:8081")),
             ("打开云端入口", lambda: webbrowser.open("https://duskrain.cn/")),
             ("打开报告目录", lambda: subprocess.Popen(["explorer", str(REPORT_ROOT)])),
-            ("打开历史 ML 报告", lambda: subprocess.Popen(["explorer", str(ML_REPORT_DIR)])),
             ("Stable 审批", lambda: self.open_path(STABLE_APPROVAL_MD)),
-            ("项目说明", lambda: self.open_path(GUIDE_PATH)),
-            ("参数说明", lambda: self.open_path(TUNING_GUIDE_PATH)),
             ("README 中文", lambda: self.open_path(README_ZH)),
             ("README EN", lambda: self.open_path(README_EN)),
         ]
+        tool_columns = 5
         for i, (label, callback) in enumerate(buttons):
-            ttk.Button(frame, text=label, command=callback).grid(row=i // 5, column=i % 5, padx=6, pady=6, sticky="w")
+            ttk.Button(frame, text=label, command=callback).grid(row=i // tool_columns, column=i % tool_columns, padx=6, pady=6, sticky="ew")
         github_index = len(buttons)
         ttk.Button(frame, text="一键同步 GitHub", style="Accent.TButton", command=self.sync_to_github).grid(
-            row=github_index // 5,
-            column=github_index % 5,
+            row=github_index // tool_columns,
+            column=github_index % tool_columns,
             padx=6,
             pady=6,
-            sticky="w",
+            sticky="ew",
         )
-        for col in range(5):
-            frame.columnconfigure(col, weight=1)
+        for col in range(tool_columns):
+            frame.columnconfigure(col, weight=1, uniform="tools")
 
     def _build_output(self, parent) -> None:
         frame = self.card(parent, "最近操作", "OUTPUT")
@@ -465,8 +508,11 @@ class ControlCenter(tk.Tk):
             fg="#0f172a",
             insertbackground="#0f172a",
             relief="flat",
-            padx=12,
-            pady=10,
+            highlightthickness=1,
+            highlightbackground="#e2e8f0",
+            highlightcolor="#93c5fd",
+            padx=14,
+            pady=12,
             wrap="word",
             font=("Consolas", 10),
         )
