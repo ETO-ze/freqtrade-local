@@ -228,14 +228,16 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\sync-gith
 ## 关键文件
 
 - [start-openclaw-control-center-gui.py](start-openclaw-control-center-gui.py)：本地 GUI 总控。
-- [factor_lab.py](factor_lab.py)：本地只读因子看板。
-- [strategy_debug_lab.py](strategy_debug_lab.py)：策略回测与调试面板。
+- [apps/streamlit/factor_lab.py](apps/streamlit/factor_lab.py)：本地只读因子看板实现。
+- [apps/streamlit/strategy_debug_lab.py](apps/streamlit/strategy_debug_lab.py)：策略回测与调试面板实现。
+- [apps/streamlit/telegram_template_lab.py](apps/streamlit/telegram_template_lab.py)：Telegram 模板面板实现。
 - [build_dynamic_alt_universe.py](build_dynamic_alt_universe.py)：动态山寨币池生成器。
 - [evaluate_backtest_stability.py](evaluate_backtest_stability.py)：稳定性与分段回测评估器。
 - [publish_dashboard_public_data.py](publish_dashboard_public_data.py)：公开看板数据发布脚本。
 - [sync_openclaw_runtime_to_server.py](sync_openclaw_runtime_to_server.py)：云端同步辅助脚本。
 - [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py)：当前山寨主策略。
 - [PROJECT_ROADMAP.json](PROJECT_ROADMAP.json)：项目标记与后续计划。
+- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：仓库目录结构与整理说明。
 
 ## 安全说明
 

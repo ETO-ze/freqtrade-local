@@ -231,14 +231,16 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\sync-gith
 ## Important Files
 
 - [start-openclaw-control-center-gui.py](start-openclaw-control-center-gui.py): local GUI control center.
-- [factor_lab.py](factor_lab.py): local read-only factor dashboard.
-- [strategy_debug_lab.py](strategy_debug_lab.py): strategy backtest/debug dashboard.
+- [apps/streamlit/factor_lab.py](apps/streamlit/factor_lab.py): local read-only factor dashboard implementation.
+- [apps/streamlit/strategy_debug_lab.py](apps/streamlit/strategy_debug_lab.py): strategy backtest/debug dashboard implementation.
+- [apps/streamlit/telegram_template_lab.py](apps/streamlit/telegram_template_lab.py): Telegram message template dashboard implementation.
 - [build_dynamic_alt_universe.py](build_dynamic_alt_universe.py): dynamic universe builder.
 - [evaluate_backtest_stability.py](evaluate_backtest_stability.py): stability and segmented backtest evaluator.
 - [publish_dashboard_public_data.py](publish_dashboard_public_data.py): dashboard data publisher.
 - [sync_openclaw_runtime_to_server.py](sync_openclaw_runtime_to_server.py): cloud sync helper.
 - [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py): active altcoin strategy.
 - [PROJECT_ROADMAP.json](PROJECT_ROADMAP.json): current project markers and planned upgrades.
+- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): repository layout and organization notes.
 
 ## Security
 

@@ -851,18 +851,18 @@
     }
   ],
   "tuning": {
-    "stake_weight": 1.4,
-    "leverage_weight": 0.6,
-    "same_side_recent_boost": 0.4,
-    "same_side_bias_multiplier": 4.0,
-    "opposite_side_penalty": 0.5,
+    "stake_weight": 0.6,
+    "leverage_weight": 0.8,
+    "same_side_recent_boost": 0.5,
+    "same_side_bias_multiplier": 5.0,
+    "opposite_side_penalty": 0.7,
     "opposite_side_recent_penalty": 0.3,
     "bias_block_threshold": 0.012,
-    "recent_weight_block_threshold": 0.4,
+    "recent_weight_block_threshold": 0.45,
     "minimum_side_multiplier": 0.05,
     "leverage_boost": 1.25,
-    "leverage_cap_boost": 1.0,
-    "leverage_hard_cap": 8
+    "leverage_cap_boost": 1.6,
+    "leverage_hard_cap": 6.0
   },
   "tuning_source": "D:\\Playground\\freqtrade-local\\user_data\\model_runtime_tuning.auto.json",
   "tuning_generated_at": "2026-03-28 02:05:31"
