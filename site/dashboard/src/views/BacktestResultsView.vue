@@ -10,6 +10,10 @@ const activeMetrics = computed(() => payload.value?.active_factor?.metrics || pa
 const candidateMetrics = computed(() => payload.value?.latest_candidate?.metrics || {})
 const backtestDetail = computed(() => payload.value?.backtest_detail)
 const liveTrading = computed(() => payload.value?.live_trading)
+const walkForward = computed(() => {
+  const data = payload.value?.walk_forward_retrain
+  return data && Object.keys(data).length ? data : null
+})
 const equityCurve = computed(() => backtestDetail.value?.equity_curve || [])
 const drawdownCurve = computed(() => equityCurve.value.map((item) => ({ ...item, drawdown_abs_pct: Math.abs(item.drawdown_pct) })))
 const pairRanking = computed(() => (backtestDetail.value?.pair_ranking || []).slice(0, 12))
@@ -120,13 +124,11 @@ onMounted(() => {
       <p class="panel-kicker">ACTIVE BACKTEST</p>
       <h3>正在使用的回测结果</h3>
       <p class="panel-copy">
-        这里优先展示当前 active 配置对应的已批准因子，而不是最新候选回测。最新候选如果未过门槛，只会作为旁路参考，不会覆盖正在交易的云端配置。
+        这里优先展示当前 active 配置对应的已批准因子，而不是最新候选回测。最新候选如果未过门槛，只作为旁路参考，不覆盖云端配置。
       </p>
 
       <div v-if="loading" class="info-banner">正在读取回测结果...</div>
-      <div v-else-if="error" class="info-banner is-error">
-        回测数据读取失败：{{ error }}
-      </div>
+      <div v-else-if="error" class="info-banner is-error">回测数据读取失败：{{ error }}</div>
       <div v-else-if="payload" class="key-grid status-grid-live">
         <div v-for="item in headlineMetrics" :key="item.label">
           <span>{{ item.label }}</span>
@@ -159,6 +161,37 @@ onMounted(() => {
         <div>
           <span>审批门槛</span>
           <p>{{ payload.approval.thresholds || 'n/a' }}</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel span-3" v-if="walkForward">
+      <p class="panel-kicker">WALK-FORWARD RETRAIN</p>
+      <h3>独立窗口重训状态</h3>
+      <p class="panel-copy">
+        该模块读取 stable 生成的 walk-forward 报告。当前为 report-only，用于观察模型是否跨验证期、测试期和最近窗口保持稳定。
+      </p>
+      <div class="key-grid status-grid-live">
+        <div><span>结果</span><strong>{{ walkForward.passed ? 'passed' : 'report-only / not passed' }}</strong></div>
+        <div><span>评分</span><strong>{{ walkForward.score ?? 'n/a' }}</strong></div>
+        <div><span>窗口通过</span><strong>{{ walkForward.passed_windows ?? 'n/a' }} / {{ walkForward.window_count ?? 'n/a' }}</strong></div>
+        <div><span>要求通过</span><strong>{{ walkForward.required_passed_windows ?? 'n/a' }}</strong></div>
+        <div><span>共识模型</span><strong>{{ walkForward.best_model_consensus || 'n/a' }}</strong></div>
+        <div><span>硬阻断</span><strong>{{ walkForward.hard_blocks?.join(', ') || 'none' }}</strong></div>
+      </div>
+      <div class="list-table compact-table">
+        <div v-for="item in walkForward.windows || []" :key="item.name" class="list-row multi">
+          <div>
+            <strong>{{ item.name }} / {{ item.best_model || 'n/a' }} / weight {{ item.best_weight ?? 'n/a' }}</strong>
+            <p>
+              train {{ item.train_start }} - {{ item.train_end }} |
+              test {{ item.test_start }} - {{ item.test_end }} |
+              rows {{ item.train_samples ?? 'n/a' }} / {{ item.test_samples ?? 'n/a' }} |
+              passed {{ item.passed ? 'yes' : 'no' }}
+            </p>
+            <p v-if="item.error">error: {{ item.error }}</p>
+          </div>
+          <span class="badge">{{ item.ok ? 'ok' : 'failed' }}</span>
         </div>
       </div>
     </article>
@@ -199,7 +232,7 @@ onMounted(() => {
         <div><span>Bot</span><strong>{{ liveTrading.bot_status || 'n/a' }}</strong></div>
         <div><span>API</span><strong>{{ liveTrading.api_ok ? 'healthy' : 'unknown' }} / {{ liveTrading.api_http_code || 'n/a' }}</strong></div>
         <div><span>持仓数量</span><strong>{{ liveTrading.open_trade_count ?? 'n/a' }}</strong></div>
-        <div><span>最近同步模式</span><strong>{{ liveTrading.mode || 'n/a' }}</strong></div>
+        <div><span>同步模式</span><strong>{{ liveTrading.mode || 'n/a' }}</strong></div>
         <div><span>重启保护</span><strong>{{ liveTrading.restart_action || 'n/a' }}</strong></div>
         <div><span>同步时间</span><strong>{{ liveTrading.generated_at || 'n/a' }}</strong></div>
       </div>
@@ -217,7 +250,7 @@ onMounted(() => {
 
     <article class="panel span-3" v-if="backtestDetail">
       <p class="panel-kicker">BACKTEST DETAIL</p>
-      <h3>回测走势与结构</h3>
+      <h3>回测走势与结果</h3>
       <p class="panel-copy">
         数据来自 Freqtrade 回测结果包 {{ backtestDetail.source_zip || 'n/a' }}。曲线和统计均基于 zip 内真实 trades / daily_profit / periodic_breakdown 聚合。
       </p>
@@ -260,7 +293,10 @@ onMounted(() => {
             <span>{{ item.profit_total_abs }} USDT / {{ item.winrate }}%</span>
           </div>
           <div class="bar-track">
-            <i :class="{ negative: numericValue(item.profit_total_abs) < 0 }" :style="{ width: barWidth(item.profit_total_abs, pairRanking.map((row) => row.profit_total_abs)) }"></i>
+            <i
+              :class="{ negative: numericValue(item.profit_total_abs) < 0 }"
+              :style="{ width: barWidth(item.profit_total_abs, pairRanking.map((row) => row.profit_total_abs)) }"
+            ></i>
           </div>
         </div>
       </div>

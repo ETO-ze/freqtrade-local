@@ -70,6 +70,38 @@ export interface BacktestPayload {
     open_trade_count?: number | null
     open_trade_pairs?: string[]
   }
+  walk_forward_retrain?: {
+    generated_at?: string
+    passed?: boolean
+    score?: number
+    passed_windows?: number
+    window_count?: number
+    required_passed_windows?: number
+    best_model_consensus?: string
+    hard_blocks?: string[]
+    data_start?: string
+    data_end?: string
+    pairs?: string[]
+    windows?: Array<{
+      name?: string
+      train_start?: string
+      train_end?: string
+      test_start?: string
+      test_end?: string
+      ok?: boolean
+      passed?: boolean
+      best_model?: string
+      best_weight?: number
+      balanced_accuracy?: number
+      long_precision?: number
+      short_precision?: number
+      orthogonal_feature_share?: number
+      dominant_feature_family?: string
+      train_samples?: number
+      test_samples?: number
+      error?: string
+    }>
+  }
   backtest_detail?: {
     source_zip?: string
     strategy_name?: string

@@ -15,13 +15,6 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.11+-3776ab?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/Vue-3-42b883?style=for-the-badge&logo=vuedotjs&logoColor=white" alt="Vue 3" />
-  <img src="https://img.shields.io/badge/Docker-%E4%BA%91%E7%AB%AF%E8%BF%90%E8%A1%8C-2496ed?style=for-the-badge&logo=docker&logoColor=white" alt="Docker 云端运行" />
-  <img src="https://img.shields.io/badge/OKX-USDT%20%E5%90%88%E7%BA%A6-111827?style=for-the-badge" alt="OKX USDT 合约" />
-</p>
-
-<p align="center">
   <a href="https://duskrain.cn">
     <img src="https://img.shields.io/badge/%E9%A6%96%E9%A1%B5-%E8%AE%BF%E9%97%AE%E7%BD%91%E7%AB%99-0ea5e9?style=for-the-badge" alt="访问首页" />
   </a>
@@ -37,25 +30,26 @@
   <a href="README.md">English</a> | <a href="README.zh-CN.md">中文</a>
 </p>
 
-OpenClaw + Freqtrade 是一套“本地研究 + 云端执行”的个人量化交易控制平台。本地机器负责行情回补、动态山寨币池筛选、多模型因子训练、回测、审批和运行时策略配置生成；服务器负责运行受保护的 Freqtrade 机器人，并对外展示只读看板。
+OpenClaw + Freqtrade 是一套“本地研究 + 云端执行”的个人量化交易控制平台。本地机器负责行情回补、动态山寨币池、因子模型训练、回测、审批和运行时策略生成；服务器负责运行受保护的 Freqtrade 机器人，并对外展示只读看板。
 
-这个仓库更接近个人量化研究与自动化工作台，不是开箱即用的交易信号服务。
+这个仓库是个人研究与自动化工作台，不是开箱即用的交易信号服务。
 
-## 项目新介绍
+## 项目简介
 
-这个项目已经从“脚本型工作区”升级成“本地量化交易控制平台”。
+项目已经从“脚本型工作区”升级为“本地量化交易控制平台”。
 
 - 本地链路：刷新并缓存行情数据，生成动态山寨币池，训练因子模型，执行回测和审批，生成 active 配置与运行时策略。
 - 云端链路：运行 Freqtrade，接收通过审批的 active 配置，必要时重启机器人，并发布只读运行状态和持仓快照。
 - 看板链路：展示已批准因子、当前 active 模型、回测指标、实盘 Bot 状态、服务器同步状态、告警和项目路线标记。
 - 总控链路：桌面 GUI 集中处理后台任务控制、本地看板启动、服务器同步、报告查看和安全 GitHub 同步。
 
-## 项目亮点
+## 核心能力
 
 - 动态山寨币池：结合 OKX 合约本地数据、成交量、流动性、市值过滤、波动率、资金费率风险和 BTC/ETH 市场状态。
 - 多模型因子训练：支持树模型、随机森林、HistGradientBoosting、XGBoost，并预留 GPU 工作流接口。
 - `AlternativeHunter` 山寨策略：接入模型选币、运行时策略、方向偏置、仓位缩放、杠杆上限和波动率目标。
-- Promotion 审批门槛：检查收益、利润因子、胜率、回撤、交易次数、历史优秀因子和稳定性评分。
+- Promotion 审批门槛：检查收益、利润因子、胜率、回撤、交易次数、历史已批准因子和稳定性评分。
+- Walk-forward 独立重训：在验证期、测试期和最近窗口分别重训模型，用于检查模型是否只在单一区间过拟合。
 - 云端执行链路：Freqtrade 实盘运行、HTTPS 访问、Authenticator 认证和服务器同步保护。
 - Vue 只读看板：展示 active 因子、回测详情、实盘 Bot 状态、告警、已批准因子历史和 roadmap 标记。
 - 本地 GUI 总控：启动/停止后台模型任务、打开报告、同步服务器、一键安全同步 GitHub。
@@ -90,7 +84,7 @@ flowchart LR
     B --> C[Robust Screen]
     C --> D[多模型因子训练]
     D --> E[候选回测]
-    E --> F[审批门槛 + 稳定性评分]
+    E --> F[Promotion gate + 稳定性评分]
     F -->|通过| G[运行时策略 + active 配置]
     G --> H[同步服务器]
     H --> I[云端 Freqtrade Bot]
@@ -112,6 +106,7 @@ flowchart LR
 - 正式筛选和 promotion 链路。
 - 刷新行情、生成动态币池、训练多模型、回测候选、执行审批 gate，并在通过后同步云端。
 - 接入市值/流动性过滤，以及 BTC/ETH 市场状态。
+- 已接入 walk-forward 独立重训，当前为 report-only，不会直接阻断 promotion。
 
 ### `autotune`
 
@@ -130,7 +125,7 @@ flowchart LR
 - 市场状态：用 BTC/ETH 趋势和波动判断 risk-on、neutral、risk-off。
 - 横截面排名：比较山寨币之间的相对强弱、成交量、动量、流动性和市值质量。
 - 时间序列确认：检查单币趋势确认、EMA 结构、突破位置、趋势一致性和波动惩罚。
-- 资金费率与 mark premium：作为风险/拥挤度因子，不再允许无限主导模型。
+- 资金费率与 mark premium：作为风险/拥挤度因子，不允许无限主导模型。
 - 运行时仓位：由模型分数、近期分数、市场状态、波动率缩放和趋势确认共同决定仓位与杠杆上限。
 
 ## Promotion 与安全逻辑
@@ -146,17 +141,28 @@ flowchart LR
 - 稳定性评分：月度一致性、单币贡献集中度、回撤持续时间、多空失衡和分段表现。
 - 历史最优保护：明显弱于当前 active 因子的候选不会覆盖实盘。
 
-## Roadmap 标记
+## Walk-forward 重训
 
-`完整独立 walk-forward 重训` 已加入项目标记。
+`完整独立 walk-forward 重训` 已加入项目标记，并开始接入 stable 链路。
 
 当前状态：
-- 分段稳定性评分已经接入审批 gate。
 
-下一步计划：
-- 将训练期、验证期、测试期和最近窗口拆成独立重训与独立回测。
-- 汇总多段评分后再决定是否 promotion。
-- 在缓存、任务队列和 promotion 行为完全验证前保持未启用。
+- 新增 `scripts/workflows/run_walk_forward_retrain.py`。
+- 支持多个独立窗口重训：验证期、测试期、最近窗口。
+- 每个窗口独立训练模型，输出 JSON 和 Markdown 报告。
+- `stable` 后台已接入该流程，但当前为 report-only。
+- 看板会展示 walk-forward 通过情况、窗口评分、主导模型、样本量和硬阻断原因。
+
+默认窗口：
+
+- 验证窗口：训练 `2025-01-01` 到 `2025-10-01`，测试 `2025-10-01` 到 `2026-02-01`。
+- 测试窗口：训练 `2025-01-01` 到 `2026-02-01`，测试 `2026-02-01` 到最新数据。
+- 最近窗口：用最近约 60 天作为测试窗口，前置约 300 天作为训练窗口。
+
+下一步：
+
+- 观察 2-3 轮 stable 结果。
+- 如果窗口通过率稳定，再考虑把 `WalkForwardRetrainGate` 从 `0` 改为 `1`，让它成为强制 promotion gate。
 
 详见：[PROJECT_ROADMAP.json](PROJECT_ROADMAP.json)
 
@@ -214,59 +220,53 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\w
 powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\stop-openclaw-factor-daemon-autotune.ps1
 ```
 
-### 同步服务器
+### 服务器同步
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\sync-openclaw-runtime-to-server.ps1
 ```
 
-### 云端持仓同步
-
-服务器端 `openclaw-dashboard-status-sync.timer` 会把云端 Freqtrade 机器人状态和实盘持仓只读快照写入 `/dashboard-data/status.json`，Vue 看板会自动刷新读取。该功能已经纳入服务器同步/运行链路，GUI 不再保留单独的“安装云端持仓同步”按钮。下面命令只用于手动维护。
+### Walk-forward 手动重训
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\install-server-position-sync.ps1 -IntervalSeconds 60 -RunOnce
+python D:\Playground\freqtrade-local\scripts\workflows\run_walk_forward_retrain.py `
+  --project-root D:\Playground\freqtrade-local `
+  --config-path D:\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-dynamic.generated.json `
+  --output-json D:\Playground\freqtrade-local\reports\openclaw-walk-forward-retrain-manual.json `
+  --output-md D:\Playground\freqtrade-local\reports\openclaw-walk-forward-retrain-manual.md
 ```
 
-### 安全同步 GitHub
+### 安全 GitHub 同步
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\sync-github-safe.ps1
 ```
 
-## 关键文件
+## 重要文件
 
 - [apps/desktop/control_center_gui.py](apps/desktop/control_center_gui.py)：本地 GUI 总控。
-- [apps/streamlit/factor_lab.py](apps/streamlit/factor_lab.py)：本地只读因子看板实现。
-- [apps/streamlit/strategy_debug_lab.py](apps/streamlit/strategy_debug_lab.py)：策略回测与调试面板实现。
-- [apps/streamlit/telegram_template_lab.py](apps/streamlit/telegram_template_lab.py)：Telegram 模板面板实现。
-- [scripts/workflows/build_dynamic_alt_universe.py](scripts/workflows/build_dynamic_alt_universe.py)：动态山寨币池生成器。
-- [scripts/workflows/evaluate_backtest_stability.py](scripts/workflows/evaluate_backtest_stability.py)：稳定性与分段回测评估器。
-- [scripts/workflows/publish_dashboard_public_data.py](scripts/workflows/publish_dashboard_public_data.py)：公开看板数据发布脚本。
-- [scripts/workflows/sync_openclaw_runtime_to_server.py](scripts/workflows/sync_openclaw_runtime_to_server.py)：云端同步辅助脚本。
-- [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py)：当前山寨主策略。
-- [PROJECT_ROADMAP.json](PROJECT_ROADMAP.json)：项目标记与后续计划。
-- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：仓库目录结构与整理说明。
+- [apps/streamlit/factor_lab.py](apps/streamlit/factor_lab.py)：本地只读因子看板。
+- [apps/streamlit/strategy_debug_lab.py](apps/streamlit/strategy_debug_lab.py)：策略回测/调试面板。
+- [scripts/workflows/build_dynamic_alt_universe.py](scripts/workflows/build_dynamic_alt_universe.py)：动态币池构建。
+- [scripts/workflows/evaluate_backtest_stability.py](scripts/workflows/evaluate_backtest_stability.py)：稳定性与分段回测评估。
+- [scripts/workflows/run_walk_forward_retrain.py](scripts/workflows/run_walk_forward_retrain.py)：独立 walk-forward 重训。
+- [scripts/workflows/sync_openclaw_runtime_to_server.py](scripts/workflows/sync_openclaw_runtime_to_server.py)：云端同步辅助。
+- [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py)：当前山寨策略。
+- [PROJECT_ROADMAP.json](PROJECT_ROADMAP.json)：项目标记和后续升级计划。
+- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：仓库结构说明。
 
 ## 安全说明
 
-仓库默认避免提交以下私密或大体积运行数据：
+仓库已配置为避免发布私有运行材料：
 
-- 交易所 API 凭证。
-- Telegram token / chat id。
-- 服务器同步凭证。
+- 交易所 API 凭据。
+- Telegram token 和 chat ID。
+- 服务器同步凭据。
 - 本地行情缓存。
 - 回测结果 zip。
-- 报告、后台日志和 SQLite 数据库。
+- 报告、daemon 日志和 SQLite 数据库。
 - 包含密钥的实盘运行配置。
 
-示例模板：
+## 风险声明
 
-- [openclaw.notification.example.json](openclaw.notification.example.json)
-- [server.openclaw-sync.example.json](server.openclaw-sync.example.json)
-- [user_data/config.example.json](user_data/config.example.json)
-- [user_data/config.openclaw-auto.example.json](user_data/config.openclaw-auto.example.json)
-
-## 风险提示
-
-本项目用于量化研究和小资金自动化验证。加密货币合约和山寨币波动大、流动性变化快，杠杆会显著放大风险。历史回测和模型评分不能保证未来收益。
+这是研究和小资金自动化项目。Crypto 合约和山寨币波动大、流动性会变化，杠杆风险高。回测结果和模型评分不保证未来收益。

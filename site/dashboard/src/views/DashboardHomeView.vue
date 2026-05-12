@@ -21,8 +21,8 @@ const cards = [
   },
   {
     title: 'Walk-forward 重训',
-    value: '规划中，未启用',
-    note: '当前已接入分段稳定性评分；完整独立重训会先进入项目标记，不影响云端实盘。',
+    value: '已接入 report-only',
+    note: 'stable 会生成独立窗口重训报告，当前只展示结果，不强制阻断 promotion。',
   },
 ]
 </script>
@@ -33,15 +33,12 @@ const cards = [
       <p class="panel-kicker">LIVE OVERVIEW</p>
       <h3>当前看板定位</h3>
       <p class="panel-copy">
-        当前 Dashboard 已接入服务器状态、最近同步、回测结果和运行告警。该页面展示的是当前系统信息，不提供交易控制。
+        当前 Dashboard 已接入服务器状态、最近同步、回测结果、运行告警和 walk-forward 重训标记。
+        该页面只展示当前系统信息，不提供交易控制。
       </p>
     </article>
 
-    <article
-      v-for="card in cards"
-      :key="card.title"
-      class="panel metric-panel"
-    >
+    <article v-for="card in cards" :key="card.title" class="panel metric-panel">
       <p class="metric-label">{{ card.title }}</p>
       <strong class="metric-value">{{ card.value }}</strong>
       <p class="metric-note">{{ card.note }}</p>
@@ -51,11 +48,7 @@ const cards = [
       <p class="panel-kicker">SERVICE MAP</p>
       <h3>当前服务边界</h3>
       <div class="service-list">
-        <div
-          v-for="service in system.services"
-          :key="service.name"
-          class="service-item"
-        >
+        <div v-for="service in system.services" :key="service.name" class="service-item">
           <div>
             <strong>{{ service.name }}</strong>
             <p>{{ service.note }}</p>

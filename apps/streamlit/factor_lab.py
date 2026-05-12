@@ -32,6 +32,7 @@ EVOLUTION_STATUS_REPORT = REPORT_ROOT / "daemon" / "factor-daemon-evolution-stat
 AUTOTUNE_STATUS_REPORT = REPORT_ROOT / "daemon" / "factor-daemon-autotune-status.json"
 BACKTEST_REPORT = REPORT_ROOT / "openclaw-auto-backtest-latest.json"
 APPROVAL_REPORT = REPORT_ROOT / "openclaw-auto-approval-latest.md"
+WALK_FORWARD_RETRAIN_REPORT = REPORT_ROOT / "openclaw-walk-forward-retrain-stable.json"
 STRATEGY_REPORT = REPORT_ROOT / "openclaw-strategy-update-latest.md"
 APPROVED_HISTORY_REPORT = REPORT_ROOT / "openclaw-approved-history.json"
 ACTIVE_CONFIG_REPORT = ROOT / "user_data" / "config.openclaw-auto.json"
@@ -588,6 +589,46 @@ def render_candidate_decision(
         st.caption(f"Active approved pairs: {', '.join(pairs)}")
 
 
+def render_walk_forward_retrain(walk_forward_data: dict | None) -> None:
+    st.subheader("Walk-Forward Retrain")
+    if not walk_forward_data:
+        st.info("No walk-forward retrain report found yet.")
+        return
+
+    cols = st.columns(5)
+    with cols[0]:
+        st.metric("Passed", str(walk_forward_data.get("passed", "N/A")))
+    with cols[1]:
+        st.metric("Score", walk_forward_data.get("score", "N/A"))
+    with cols[2]:
+        st.metric("Windows", f"{walk_forward_data.get('passed_windows', 'N/A')} / {walk_forward_data.get('window_count', 'N/A')}")
+    with cols[3]:
+        st.metric("Required", walk_forward_data.get("required_passed_windows", "N/A"))
+    with cols[4]:
+        st.metric("Consensus", walk_forward_data.get("best_model_consensus", "N/A"))
+
+    hard_blocks = walk_forward_data.get("hard_blocks") or []
+    st.caption(f"Hard blocks: {', '.join(hard_blocks) if hard_blocks else 'none'}")
+    rows = walk_forward_data.get("windows") or []
+    if rows:
+        columns = [
+            "name",
+            "train_start",
+            "train_end",
+            "test_start",
+            "test_end",
+            "best_model",
+            "best_weight",
+            "balanced_accuracy",
+            "long_precision",
+            "short_precision",
+            "orthogonal_feature_share",
+            "passed",
+        ]
+        frame = pd.DataFrame(rows)
+        st.dataframe(frame[[column for column in columns if column in frame.columns]], use_container_width=True, hide_index=True)
+
+
 def render_data_quality(backtest_data: dict | None, approval_text: str | None) -> None:
     st.subheader("Backtest Data Quality")
     if not backtest_data:
@@ -1139,6 +1180,7 @@ evolution_status_data = load_json(EVOLUTION_STATUS_REPORT)
 autotune_status_data = load_json(AUTOTUNE_STATUS_REPORT)
 backtest_data = load_json(BACKTEST_REPORT)
 approval_text = load_text(APPROVAL_REPORT)
+walk_forward_retrain_data = load_json(WALK_FORWARD_RETRAIN_REPORT)
 strategy_text = load_text(STRATEGY_REPORT)
 approved_history_data = load_json(APPROVED_HISTORY_REPORT)
 active_config_data = load_json(ACTIVE_CONFIG_REPORT)
@@ -1181,6 +1223,8 @@ with overview_tab:
 
 with decision_tab:
     render_candidate_decision(backtest_data, approved_history_data, runtime_policy_data, approval_text)
+    st.divider()
+    render_walk_forward_retrain(walk_forward_retrain_data)
     st.divider()
     render_data_quality(backtest_data, approval_text)
     st.divider()

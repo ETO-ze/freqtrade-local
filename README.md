@@ -56,6 +56,7 @@ This project has been upgraded from a script-style workspace into a local quanti
 - Multi-model factor training with tree models, Random Forest, HistGradientBoosting, XGBoost, and optional GPU-oriented workflow hooks.
 - `AlternativeHunter` strategy with model-driven pair selection, runtime policy, direction bias, stake scaling, leverage cap, and volatility targeting.
 - Promotion gate that checks profit, profit factor, winrate, drawdown, trade count, historical approved factors, and stability scoring.
+- Independent walk-forward retraining that retrains models across validation, test, and recent windows before promotion review.
 - Cloud execution lane with Freqtrade live runtime, protected HTTPS access, Authenticator authentication, and server sync protection.
 - Read-only Vue dashboard for active factor, backtest details, live bot status, alerts, approved factor history, and roadmap markers.
 - Local GUI control center for starting/stopping background model daemons, opening reports, syncing to server, and safe GitHub publishing.
@@ -113,6 +114,7 @@ flowchart LR
 - Formal screening and promotion lane.
 - Refreshes market data, rebuilds dynamic universe, trains multiple models, backtests candidates, runs approval gates, and can sync approved configs to the server.
 - Uses dynamic market-cap/liquidity filters and recent BTC/ETH regime information.
+- Runs independent walk-forward retraining in report-only mode, so each stable cycle can show whether the model survives separate validation/test/recent windows.
 
 ### `autotune`
 
@@ -231,6 +233,18 @@ The server-side `openclaw-dashboard-status-sync.timer` writes the read-only live
 powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\windows\install-server-position-sync.ps1 -IntervalSeconds 60 -RunOnce
 ```
 
+### Walk-Forward Retrain
+
+```powershell
+python D:\Playground\freqtrade-local\scripts\workflows\run_walk_forward_retrain.py `
+  --project-root D:\Playground\freqtrade-local `
+  --config-path D:\Playground\freqtrade-local\user_data\config.backtest.okx-futures-alt-local-dynamic.generated.json `
+  --output-json D:\Playground\freqtrade-local\reports\openclaw-walk-forward-retrain-manual.json `
+  --output-md D:\Playground\freqtrade-local\reports\openclaw-walk-forward-retrain-manual.md
+```
+
+The stable daemon runs this workflow automatically in report-only mode. After several stable cycles, `WalkForwardRetrainGate` can be switched from `0` to `1` in [start-openclaw-factor-daemon-stable.ps1](scripts/windows/start-openclaw-factor-daemon-stable.ps1) if the report is stable enough to become a hard promotion gate.
+
 ### Safe GitHub Sync
 
 ```powershell
@@ -245,6 +259,7 @@ powershell -ExecutionPolicy Bypass -File D:\Playground\freqtrade-local\scripts\w
 - [apps/streamlit/telegram_template_lab.py](apps/streamlit/telegram_template_lab.py): Telegram message template dashboard implementation.
 - [scripts/workflows/build_dynamic_alt_universe.py](scripts/workflows/build_dynamic_alt_universe.py): dynamic universe builder.
 - [scripts/workflows/evaluate_backtest_stability.py](scripts/workflows/evaluate_backtest_stability.py): stability and segmented backtest evaluator.
+- [scripts/workflows/run_walk_forward_retrain.py](scripts/workflows/run_walk_forward_retrain.py): independent walk-forward retraining workflow.
 - [scripts/workflows/publish_dashboard_public_data.py](scripts/workflows/publish_dashboard_public_data.py): dashboard data publisher.
 - [scripts/workflows/sync_openclaw_runtime_to_server.py](scripts/workflows/sync_openclaw_runtime_to_server.py): cloud sync helper.
 - [user_data/strategies/AlternativeHunter.py](user_data/strategies/AlternativeHunter.py): active altcoin strategy.

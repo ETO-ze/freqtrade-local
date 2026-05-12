@@ -232,7 +232,7 @@ def build_features(
     df["funding_rate_zscore_48"] = (
         (df["funding_rate"] - df["funding_rate"].rolling(48).mean())
         / df["funding_rate"].rolling(48).std().replace(0, np.nan)
-    )
+    ).replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
     df["mark_close"] = df["mark_close"].ffill().fillna(df["close"])
     df["mark_premium"] = df["close"] / df["mark_close"].replace(0, np.nan) - 1
@@ -241,7 +241,7 @@ def build_features(
     df["mark_premium_zscore_48"] = (
         (df["mark_premium"] - df["mark_premium"].rolling(48).mean())
         / df["mark_premium"].rolling(48).std().replace(0, np.nan)
-    )
+    ).replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
     for prefix in ("btc", "eth"):
         for period in (1, 3, 6, 12, 24):
@@ -278,10 +278,10 @@ def build_features(
 
     df["ret_1_zscore_24"] = (
         (df["ret_1"] - df["ret_1"].rolling(24).mean()) / df["ret_1"].rolling(24).std().replace(0, np.nan)
-    )
+    ).replace([np.inf, -np.inf], np.nan).fillna(0.0)
     df["ret_3_zscore_24"] = (
         (df["ret_3"] - df["ret_3"].rolling(24).mean()) / df["ret_3"].rolling(24).std().replace(0, np.nan)
-    )
+    ).replace([np.inf, -np.inf], np.nan).fillna(0.0)
     df["price_volume_divergence_24"] = df["ret_3_zscore_24"] - df["volume_zscore_24"]
     df["reversion_pressure_24"] = -df["price_vs_rollmean_24"] * df["volume_zscore_24"]
     df["volume_absorption_24"] = df["direction"] / df["volume_ratio_24"].replace(0, np.nan)
@@ -294,7 +294,38 @@ def build_features(
     return df.dropna()
 
 
-def load_dataset(data_dir: Path, pairs, timeframe: str, horizon: int, threshold: float) -> pd.DataFrame:
+def filter_raw_frame(
+    frame: pd.DataFrame,
+    start: Optional[pd.Timestamp],
+    end: Optional[pd.Timestamp],
+    max_raw_rows: int,
+) -> pd.DataFrame:
+    if start is not None or end is not None:
+        dates = pd.to_datetime(frame["date"], utc=True)
+        # Keep enough leading/trailing rows for rolling features and forward labels.
+        buffer_start = start - pd.Timedelta(days=3) if start is not None else None
+        buffer_end = end + pd.Timedelta(days=1) if end is not None else None
+        mask = pd.Series(True, index=frame.index)
+        if buffer_start is not None:
+            mask &= dates >= buffer_start
+        if buffer_end is not None:
+            mask &= dates < buffer_end
+        frame = frame.loc[mask].copy()
+    elif max_raw_rows > 0 and len(frame) > max_raw_rows:
+        frame = frame.tail(max_raw_rows).copy()
+    return frame
+
+
+def load_dataset(
+    data_dir: Path,
+    pairs,
+    timeframe: str,
+    horizon: int,
+    threshold: float,
+    data_start: Optional[pd.Timestamp] = None,
+    data_end: Optional[pd.Timestamp] = None,
+    max_raw_rows_per_pair: int = 60000,
+) -> pd.DataFrame:
     btc_frame = None
     eth_frame = None
     btc_path = resolve_market_data_path(data_dir, "BTC_USDT_USDT", timeframe)
@@ -310,11 +341,15 @@ def load_dataset(data_dir: Path, pairs, timeframe: str, horizon: int, threshold:
         path = data_dir / f"{stem}-{timeframe}-futures.feather"
         if not path.exists():
             continue
-        frame = pd.read_feather(path)
+        frame = filter_raw_frame(pd.read_feather(path), data_start, data_end, max_raw_rows_per_pair)
+        if frame.empty:
+            continue
         funding_path = data_dir / f"{stem}-1h-funding_rate.feather"
         mark_path = data_dir / f"{stem}-1h-mark.feather"
-        funding_frame = pd.read_feather(funding_path) if funding_path.exists() else None
-        mark_frame = pd.read_feather(mark_path) if mark_path.exists() else None
+        funding_frame = (
+            filter_raw_frame(pd.read_feather(funding_path), data_start, data_end, 0) if funding_path.exists() else None
+        )
+        mark_frame = filter_raw_frame(pd.read_feather(mark_path), data_start, data_end, 0) if mark_path.exists() else None
         frames.append(
             build_features(
                 frame,
@@ -399,6 +434,53 @@ def load_profile(path: Optional[str]) -> dict:
     return json.loads(profile_path.read_text(encoding="utf-8"))
 
 
+def parse_optional_timestamp(value: str) -> Optional[pd.Timestamp]:
+    if not value:
+        return None
+    return pd.Timestamp(value, tz="UTC")
+
+
+def slice_dataset_by_date(
+    dataset: pd.DataFrame,
+    start: Optional[pd.Timestamp],
+    end: Optional[pd.Timestamp],
+) -> pd.DataFrame:
+    if start is None and end is None:
+        return dataset
+    dates = pd.to_datetime(dataset["date"], utc=True)
+    mask = pd.Series(True, index=dataset.index)
+    if start is not None:
+        mask &= dates >= start
+    if end is not None:
+        mask &= dates < end
+    return dataset.loc[mask].copy()
+
+
+def cap_dataset_rows(frame: pd.DataFrame, max_rows: int, seed: int) -> pd.DataFrame:
+    if max_rows <= 0 or len(frame) <= max_rows:
+        return frame
+    sampled_parts = []
+    remaining = max_rows
+    rng = np.random.default_rng(seed)
+    target_counts = frame["target"].value_counts()
+    for target, count in target_counts.items():
+        take = max(1, int(max_rows * count / len(frame)))
+        take = min(take, int(count), remaining)
+        if take <= 0:
+            continue
+        sampled_parts.append(frame.loc[frame["target"] == target].sample(n=take, random_state=int(rng.integers(1, 2**31 - 1))))
+        remaining -= take
+    sampled = pd.concat(sampled_parts, ignore_index=False) if sampled_parts else frame.sample(n=max_rows, random_state=seed)
+    if len(sampled) < max_rows:
+        extra = frame.drop(index=sampled.index, errors="ignore")
+        if not extra.empty:
+            sampled = pd.concat(
+                [sampled, extra.sample(n=min(max_rows - len(sampled), len(extra)), random_state=seed + 17)],
+                ignore_index=False,
+            )
+    return sampled.sort_values("date").reset_index(drop=True)
+
+
 def build_feature_mapping(feature_columns: List[str], sanitized_columns: List[str]) -> Dict[str, str]:
     return dict(zip(feature_columns, sanitized_columns))
 
@@ -431,11 +513,11 @@ def build_models(requested_models: List[str], profile: dict, prefer_gpu: bool = 
         "rf": {
             "name": "RandomForestClassifier",
             "params": {
-                "n_estimators": 300,
-                "max_depth": 8,
+                "n_estimators": 160,
+                "max_depth": 7,
                 "min_samples_leaf": 40,
                 "class_weight": "balanced_subsample",
-                "n_jobs": -1,
+                "n_jobs": 4,
                 "random_state": 42,
             },
         },
@@ -443,8 +525,8 @@ def build_models(requested_models: List[str], profile: dict, prefer_gpu: bool = 
             "name": "HistGradientBoostingClassifier",
             "params": {
                 "learning_rate": 0.05,
-                "max_depth": 8,
-                "max_iter": 250,
+                "max_depth": 7,
+                "max_iter": 160,
                 "min_samples_leaf": 80,
                 "random_state": 42,
             },
@@ -474,15 +556,16 @@ def build_models(requested_models: List[str], profile: dict, prefer_gpu: bool = 
         xgb_params = {
             "objective": "multi:softmax",
             "num_class": 3,
-            "n_estimators": 350,
+            "n_estimators": 220,
             "learning_rate": 0.05,
-            "max_depth": 8,
+            "max_depth": 6,
             "subsample": 0.85,
             "colsample_bytree": 0.85,
             "reg_alpha": 0.1,
             "reg_lambda": 0.2,
             "random_state": 42,
             "tree_method": "hist",
+            "n_jobs": 4,
             "verbosity": 0,
         }
         if prefer_gpu:
@@ -833,6 +916,13 @@ def main():
     )
     parser.add_argument("--profile-json", default="", help="Optional model evolution profile json.")
     parser.add_argument("--prefer-gpu", action="store_true", help="Prefer GPU-capable models when available.")
+    parser.add_argument("--train-start", default="", help="Optional inclusive UTC train start date, e.g. 2025-01-01.")
+    parser.add_argument("--train-end", default="", help="Optional exclusive UTC train end date.")
+    parser.add_argument("--test-start", default="", help="Optional inclusive UTC test start date.")
+    parser.add_argument("--test-end", default="", help="Optional exclusive UTC test end date.")
+    parser.add_argument("--max-raw-rows-per-pair", type=int, default=60000, help="Cap raw rows per pair before feature building when no explicit date window is provided. 0 disables the cap.")
+    parser.add_argument("--max-train-rows", type=int, default=90000, help="Cap rows used for model fitting to avoid container OOM. 0 disables the cap.")
+    parser.add_argument("--max-test-rows", type=int, default=45000, help="Cap rows used for evaluation to avoid container OOM. 0 disables the cap.")
     args = parser.parse_args()
 
     data_dir = Path(args.data_dir)
@@ -840,12 +930,42 @@ def main():
     output_prefix.parent.mkdir(parents=True, exist_ok=True)
     pairs = [pair.strip() for pair in args.pairs.split(",") if pair.strip()]
     profile = load_profile(args.profile_json)
+    train_start = parse_optional_timestamp(args.train_start)
+    train_end = parse_optional_timestamp(args.train_end)
+    test_start = parse_optional_timestamp(args.test_start)
+    test_end = parse_optional_timestamp(args.test_end)
+    explicit_starts = [item for item in [train_start, test_start] if item is not None]
+    explicit_ends = [item for item in [train_end, test_end] if item is not None]
+    data_start = min(explicit_starts) if explicit_starts else None
+    data_end = max(explicit_ends) if explicit_ends else None
 
-    dataset = load_dataset(data_dir, pairs, args.timeframe, args.horizon, args.threshold)
+    dataset = load_dataset(
+        data_dir,
+        pairs,
+        args.timeframe,
+        args.horizon,
+        args.threshold,
+        data_start=data_start,
+        data_end=data_end,
+        max_raw_rows_per_pair=args.max_raw_rows_per_pair,
+    )
     feature_columns = get_feature_columns(dataset)
-    split_index = int(len(dataset) * 0.8)
-    train = dataset.iloc[:split_index]
-    test = dataset.iloc[split_index:]
+    if train_start or train_end or test_start or test_end:
+        train = slice_dataset_by_date(dataset, train_start, train_end)
+        test = slice_dataset_by_date(dataset, test_start, test_end)
+        if train.empty:
+            raise ValueError("Training window produced no rows.")
+        if test.empty:
+            raise ValueError("Testing window produced no rows.")
+    else:
+        split_index = int(len(dataset) * 0.8)
+        train = dataset.iloc[:split_index]
+        test = dataset.iloc[split_index:]
+
+    raw_train_samples = int(len(train))
+    raw_test_samples = int(len(test))
+    train = cap_dataset_rows(train, args.max_train_rows, seed=42)
+    test = cap_dataset_rows(test, args.max_test_rows, seed=84)
 
     x_train = train[feature_columns]
     y_train = train["target"]
@@ -895,6 +1015,17 @@ def main():
         "threshold": args.threshold,
         "recent_window": args.recent_window,
         "samples": int(len(dataset)),
+        "train_samples": int(len(train)),
+        "test_samples": int(len(test)),
+        "raw_train_samples": raw_train_samples,
+        "raw_test_samples": raw_test_samples,
+        "max_raw_rows_per_pair": args.max_raw_rows_per_pair,
+        "max_train_rows": args.max_train_rows,
+        "max_test_rows": args.max_test_rows,
+        "train_start": args.train_start or None,
+        "train_end": args.train_end or None,
+        "test_start": args.test_start or None,
+        "test_end": args.test_end or None,
         "models": requested_models,
         "profile_json": args.profile_json or None,
     }

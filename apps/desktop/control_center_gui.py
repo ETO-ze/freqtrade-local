@@ -38,6 +38,7 @@ MANUAL_PROMOTION_REPORT = REPORT_ROOT / "openclaw-manual-promotion-latest.md"
 README_EN = ROOT / "README.md"
 README_ZH = ROOT / "README.zh-CN.md"
 PROJECT_ROADMAP = ROOT / "PROJECT_ROADMAP.json"
+WALK_FORWARD_RETRAIN = REPORT_ROOT / "openclaw-walk-forward-retrain-stable.json"
 
 DAEMONS = {
     "fast": {
@@ -209,6 +210,7 @@ class ControlCenter(tk.Tk):
             "latest_candidate": tk.StringVar(value="n/a"),
         }
         self.roadmap_var = tk.StringVar(value="n/a")
+        self.walk_forward_var = tk.StringVar(value="n/a")
 
         self._configure_style()
         self._build()
@@ -351,6 +353,7 @@ class ControlCenter(tk.Tk):
 
         self._build_active_area(content)
         self._build_roadmap_area(content)
+        self._build_walk_forward_area(content)
         self._build_runtime_area(content)
         self._build_controls(content)
         self._build_tools(content)
@@ -407,6 +410,28 @@ class ControlCenter(tk.Tk):
             wraplength=1320,
             justify="left",
         ).pack(anchor="w")
+
+    def _build_walk_forward_area(self, parent) -> None:
+        frame = self.card(parent, "Walk-forward 独立重训", "VALIDATION")
+        frame.pack(fill="x", pady=(0, 14))
+        frame.columnconfigure(0, weight=1)
+        ttk.Label(
+            frame,
+            textvariable=self.walk_forward_var,
+            style="Value.TLabel",
+            wraplength=1320,
+            justify="left",
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 12))
+        ttk.Button(
+            frame,
+            text="手动运行 Walk-forward",
+            style="Accent.TButton",
+            command=lambda: self.run_and_report(
+                "run-walk-forward-retrain.ps1",
+                label="手动运行 Walk-forward 独立重训",
+                timeout=1800,
+            ),
+        ).grid(row=0, column=1, sticky="e")
 
     def _build_runtime_area(self, parent) -> None:
         area = ttk.Frame(parent)
@@ -481,6 +506,7 @@ class ControlCenter(tk.Tk):
             ("打开云端入口", lambda: webbrowser.open("https://duskrain.cn/")),
             ("打开报告目录", lambda: subprocess.Popen(["explorer", str(REPORT_ROOT)])),
             ("Stable 审批", lambda: self.open_path(STABLE_APPROVAL_MD)),
+            ("Walk-forward 报告", lambda: self.open_path(WALK_FORWARD_RETRAIN)),
             ("README 中文", lambda: self.open_path(README_ZH)),
             ("README EN", lambda: self.open_path(README_EN)),
         ]
@@ -524,6 +550,7 @@ class ControlCenter(tk.Tk):
             self.status_vars[name].set(daemon_summary(f"factor-daemon-{name}"))
         self.refresh_active_factor()
         self.refresh_roadmap()
+        self.refresh_walk_forward()
         self.refresh_remote_status()
 
     def refresh_active_factor(self) -> None:
@@ -582,6 +609,32 @@ class ControlCenter(tk.Tk):
             if next_step:
                 lines.append(f"下一步：{next_step}")
         self.roadmap_var.set("\n".join(lines) if lines else "暂无项目标记。")
+
+    def refresh_walk_forward(self) -> None:
+        data = load_json(WALK_FORWARD_RETRAIN)
+        if not data:
+            self.walk_forward_var.set("暂无 Walk-forward 重训报告。stable 下一轮会自动生成；也可以点击右侧按钮手动运行。")
+            return
+        windows = data.get("windows") or []
+        status = "通过" if data.get("passed") else "未通过 / report-only"
+        lines = [
+            f"状态：{status} | score={data.get('score', 'n/a')} | 窗口={data.get('passed_windows', 'n/a')}/{data.get('window_count', 'n/a')} | 要求={data.get('required_passed_windows', 'n/a')}",
+            f"共识模型：{data.get('best_model_consensus', 'n/a')} | 硬阻断：{', '.join(data.get('hard_blocks') or []) or 'none'}",
+            f"数据范围：{data.get('data_start', 'n/a')} -> {data.get('data_end', 'n/a')}",
+        ]
+        for item in windows[:3]:
+            lines.append(
+                "{name}: {ok} / passed={passed} / {model} / weight={weight} / rows={train}/{test}".format(
+                    name=item.get("name", "window"),
+                    ok="ok" if item.get("ok") else "failed",
+                    passed="yes" if item.get("passed") else "no",
+                    model=item.get("best_model", "n/a"),
+                    weight=item.get("best_weight", "n/a"),
+                    train=item.get("train_samples", "n/a"),
+                    test=item.get("test_samples", "n/a"),
+                )
+            )
+        self.walk_forward_var.set("\n".join(lines))
 
     def refresh_remote_status(self) -> None:
         data = load_json(SERVER_SYNC_REPORT) or load_json(SERVER_STATUS_REPORT)

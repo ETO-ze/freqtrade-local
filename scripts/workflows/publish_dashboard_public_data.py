@@ -20,6 +20,7 @@ LOCAL_PUBLIC_ROOT = PROJECT_ROOT / "dashboard-data"
 MANUAL_PROMOTION_REPORT = REPORTS_ROOT / "openclaw-manual-promotion-latest.md"
 BACKTEST_RESULT_ROOT = PROJECT_ROOT / "user_data" / "backtest_results"
 PROJECT_ROADMAP_PATH = PROJECT_ROOT / "PROJECT_ROADMAP.json"
+WALK_FORWARD_RETRAIN_PATH = REPORTS_ROOT / "openclaw-walk-forward-retrain-stable.json"
 
 
 def load_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -304,6 +305,7 @@ def build_backtest_payload() -> dict[str, Any]:
     approved_history = as_history_list(load_json(REPORTS_ROOT / "openclaw-approved-history.json", default=[]))
     runtime_policy = load_json(PROJECT_ROOT / "user_data" / "model_runtime_policy.json")
     project_roadmap = load_json(PROJECT_ROADMAP_PATH, default={"items": []})
+    walk_forward_retrain = load_json(WALK_FORWARD_RETRAIN_PATH, default={})
     active_config = load_json(PROJECT_ROOT / "user_data" / "config.openclaw-auto.json")
     active_factor = select_active_factor(approved_history, runtime_policy, active_config)
     active_pairs = manual_active_pairs() or list((active_config.get("exchange") or {}).get("pair_whitelist") or [])
@@ -368,6 +370,7 @@ def build_backtest_payload() -> dict[str, Any]:
         },
         "backtest_detail": build_backtest_detail_payload(backtest),
         "live_trading": build_live_trading_payload(server_sync, server_status),
+        "walk_forward_retrain": walk_forward_retrain,
         "project_roadmap": project_roadmap,
         "approved_history": approved_history,
     }

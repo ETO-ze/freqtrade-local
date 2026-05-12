@@ -129,13 +129,13 @@
         <article class="module-card">
           <div class="card-top">
             <span class="tag">MODULE E</span>
-            <span class="status pending">PLANNED</span>
+            <span class="status live">REPORT-ONLY</span>
           </div>
           <h3>Walk-forward / 独立重训</h3>
-          <p>项目标记已加入：后续会把训练期、验证期、测试期和最近窗口拆成独立重训与独立回测，再汇总稳定性评分决定是否 promotion。</p>
+          <p>已接入 stable 报告链路：训练期、验证期、测试期和最近窗口会拆成独立重训任务，用于观察模型是否跨区间稳定。当前为 report-only，不直接阻断实盘 promotion。</p>
           <div class="meta">
             <span>状态</span>
-            <code>planned / not enabled</code>
+            <code>stable report-only</code>
           </div>
           <a class="button secondary" href="https://duskrain.cn/dashboard/backtest" target="_blank" rel="noopener noreferrer">查看看板标记</a>
         </article>
