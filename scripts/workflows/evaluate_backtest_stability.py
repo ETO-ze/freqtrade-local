@@ -8,6 +8,19 @@ from pathlib import Path
 from typing import Any
 
 
+def atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+
+
+def atomic_write_json(path: Path, payload: Any) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    atomic_write_text(path, text)
+
+
 def safe_float(value: Any, default: float = 0.0) -> float:
     try:
         if value in (None, "", "N/A", "n/a"):
@@ -292,8 +305,7 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
                 f"{row.get('profit_factor')} | {row.get('winrate')} | {row.get('trade_count')} | "
                 f"{row.get('top_pair_share')} | {row.get('score')} |"
             )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(path, "\n".join(lines))
 
 
 def main() -> int:
@@ -308,8 +320,7 @@ def main() -> int:
     payload = evaluate(load_strategy_payload(zip_path, args.strategy))
     payload["source_zip"] = str(zip_path)
     output_json = Path(args.output_json)
-    output_json.parent.mkdir(parents=True, exist_ok=True)
-    output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(output_json, payload)
     write_report(Path(args.output_md), payload)
     print(f"Wrote {output_json}")
     print(f"Wrote {args.output_md}")

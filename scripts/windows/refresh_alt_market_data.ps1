@@ -6,7 +6,12 @@ param(
     [int]$Days = 180,
     [string]$ExtraPairs = 'BTC/USDT:USDT,ETH/USDT:USDT',
     [string]$Timeframes = '3m,5m,15m,1h,4h,1d',
-    [switch]$Prepend
+    [switch]$Prepend,
+    [int]$MaxAttempts = 3,
+    [int]$RetryDelaySeconds = 30,
+    [int]$MaxCacheAgeHours = 12,
+    [double]$MinCacheCoveragePct = 70.0,
+    [switch]$DisableCachedFallback
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,6 +34,61 @@ function Get-UniquePairs {
         }
     }
     return @($result)
+}
+
+function Get-PairStem {
+    param([string]$Pair)
+    return $Pair.Replace('/', '_').Replace(':', '_')
+}
+
+function Test-RecentMarketCache {
+    param(
+        [string]$DataDir,
+        [string[]]$Pairs,
+        [string]$PrimaryTimeframe,
+        [int]$MaxAgeHours,
+        [double]$MinCoveragePct
+    )
+
+    $futuresDir = Join-Path $DataDir 'futures'
+    if (-not (Test-Path $futuresDir)) {
+        return [pscustomobject]@{
+            ok = $false
+            recent = 0
+            total = $Pairs.Count
+            coverage_pct = 0.0
+            newest = $null
+            reason = "futures data directory not found"
+        }
+    }
+
+    $cutoff = (Get-Date).AddHours(-1 * [math]::Max($MaxAgeHours, 1))
+    $recent = 0
+    $newest = $null
+    foreach ($pair in $Pairs) {
+        $stem = Get-PairStem -Pair $pair
+        $path = Join-Path $futuresDir "$stem-$PrimaryTimeframe-futures.feather"
+        if (-not (Test-Path $path)) {
+            continue
+        }
+        $item = Get-Item $path
+        if ($null -eq $newest -or $item.LastWriteTime -gt $newest) {
+            $newest = $item.LastWriteTime
+        }
+        if ($item.LastWriteTime -ge $cutoff -and $item.Length -gt 0) {
+            $recent += 1
+        }
+    }
+    $total = [math]::Max($Pairs.Count, 1)
+    $coverage = [math]::Round(($recent / $total) * 100.0, 2)
+    return [pscustomobject]@{
+        ok = ($coverage -ge $MinCoveragePct)
+        recent = $recent
+        total = $Pairs.Count
+        coverage_pct = $coverage
+        newest = $newest
+        reason = "recent $PrimaryTimeframe futures cache coverage $coverage%"
+    }
 }
 
 $config = Get-Content $BaseConfigPath -Raw | ConvertFrom-Json
@@ -70,10 +130,39 @@ if ($Prepend) {
     $downloadArgs += '--prepend'
 }
 
-& docker @downloadArgs
+$success = $false
+$lastExitCode = 0
+$attempts = [math]::Max($MaxAttempts, 1)
+for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+    Write-Host "[refresh-alt-market-data] download-data attempt $attempt/$attempts." -ForegroundColor Cyan
+    & docker @downloadArgs
+    $lastExitCode = $LASTEXITCODE
+    if ($lastExitCode -eq 0) {
+        $success = $true
+        break
+    }
+    if ($attempt -lt $attempts) {
+        Write-Warning "[refresh-alt-market-data] download-data failed with exit code $lastExitCode. Retrying in $RetryDelaySeconds seconds."
+        Start-Sleep -Seconds ([math]::Max($RetryDelaySeconds, 1))
+    }
+}
 
-if ($LASTEXITCODE -ne 0) {
-    throw "freqtrade download-data failed with exit code $LASTEXITCODE"
+if (-not $success) {
+    if (-not $DisableCachedFallback.IsPresent) {
+        $primaryTimeframe = if ($timeframesList -contains '5m') { '5m' } else { $timeframesList[0] }
+        $cacheStatus = Test-RecentMarketCache `
+            -DataDir $dataDir `
+            -Pairs $pairs `
+            -PrimaryTimeframe $primaryTimeframe `
+            -MaxAgeHours $MaxCacheAgeHours `
+            -MinCoveragePct $MinCacheCoveragePct
+        if ($cacheStatus.ok) {
+            Write-Warning ("[refresh-alt-market-data] download-data failed with exit code {0}, but cached data is acceptable: {1}/{2} recent files ({3}%). Newest: {4}. Continuing with cache." -f $lastExitCode, $cacheStatus.recent, $cacheStatus.total, $cacheStatus.coverage_pct, $cacheStatus.newest)
+            exit 0
+        }
+        Write-Warning ("[refresh-alt-market-data] cached data is not acceptable: {0}" -f $cacheStatus.reason)
+    }
+    throw "freqtrade download-data failed with exit code $lastExitCode"
 }
 
 Write-Host "[refresh-alt-market-data] Data refresh completed." -ForegroundColor Green

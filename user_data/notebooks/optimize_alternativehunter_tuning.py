@@ -47,8 +47,17 @@ def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
+def save_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+
+
 def save_json(path: Path, data) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    text = json.dumps(data, ensure_ascii=False, indent=2)
+    json.loads(text)
+    save_text(path, text)
 
 
 def select_pairs(policy: dict, max_pairs: int) -> list[str]:
@@ -361,7 +370,7 @@ def main() -> None:
         lines.append(
             f"| {item['trial']} | {item['approved']} | {item['objective']} | {m['total_profit_pct']} | {m['profit_factor']} | {m['winrate']} | {m['max_drawdown_pct']} | {m['trade_count']} |"
         )
-    output_md.write_text("\n".join(lines), encoding="utf-8")
+    save_text(output_md, "\n".join(lines))
 
     current_score = None
     if isinstance(current_approved, dict):

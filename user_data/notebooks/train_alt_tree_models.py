@@ -2,7 +2,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -118,6 +118,30 @@ FEATURE_FAMILIES = {
         "is_weekend",
     },
 }
+
+DEFAULT_FEATURE_FAMILY_CAPS = {
+    "mark_premium": 0.35,
+    "funding": 0.30,
+    "pair_identity": 0.25,
+    "other": 0.45,
+}
+DEFAULT_MAX_FEATURE_FAMILY_CAP = 0.45
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    tmp_path.replace(path)
 
 
 def compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
@@ -425,6 +449,25 @@ def get_feature_columns(dataset: pd.DataFrame) -> List[str]:
     ]
 
 
+def parse_feature_family_list(value: str) -> set[str]:
+    return {item.strip() for item in value.split(",") if item.strip()}
+
+
+def exclude_feature_families(feature_columns: List[str], excluded_families: set[str]) -> tuple[List[str], List[str]]:
+    if not excluded_families:
+        return feature_columns, []
+    kept = []
+    removed = []
+    for column in feature_columns:
+        if feature_family(column) in excluded_families:
+            removed.append(column)
+        else:
+            kept.append(column)
+    if not kept:
+        raise ValueError(f"Excluded feature families removed all features: {sorted(excluded_families)}")
+    return kept, removed
+
+
 def load_profile(path: Optional[str]) -> dict:
     if not path:
         return {}
@@ -692,6 +735,19 @@ def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_r
     feature_family_shares = compute_feature_family_shares(feature_importance_pairs)
     dominant_feature_family = max(feature_family_shares.items(), key=lambda item: item[1])[0] if feature_family_shares else ""
     max_feature_family_share = float(feature_family_shares.get(dominant_feature_family, 0.0)) if dominant_feature_family else 0.0
+    feature_family_risk = "high" if max_feature_family_share >= 0.5 or mark_premium_family_share >= 0.4 else "normal"
+    capped_feature_importance_pairs, capped_feature_family_shares, feature_family_excess_share = apply_feature_family_caps(
+        feature_importance_pairs
+    )
+    capped_top_features = capped_feature_importance_pairs[:10]
+    capped_dominant_feature_family = (
+        max(capped_feature_family_shares.items(), key=lambda item: item[1])[0] if capped_feature_family_shares else ""
+    )
+    capped_max_feature_family_share = (
+        float(capped_feature_family_shares.get(capped_dominant_feature_family, 0.0))
+        if capped_dominant_feature_family
+        else 0.0
+    )
 
     return {
         "model": name,
@@ -711,7 +767,19 @@ def evaluate_model(name: str, model, x_train, y_train, x_test, y_test, forward_r
         "feature_family_shares": {key: round(float(value), 4) for key, value in feature_family_shares.items()},
         "dominant_feature_family": dominant_feature_family,
         "max_feature_family_share": round(max_feature_family_share, 4),
+        "feature_family_risk": feature_family_risk,
+        "feature_family_cap_applied": round(feature_family_excess_share, 4) > 0,
+        "feature_family_excess_share": round(feature_family_excess_share, 4),
+        "feature_family_caps": {key: round(float(value), 4) for key, value in DEFAULT_FEATURE_FAMILY_CAPS.items()},
+        "capped_feature_family_shares": {
+            key: round(float(value), 4) for key, value in capped_feature_family_shares.items()
+        },
+        "capped_dominant_feature_family": capped_dominant_feature_family,
+        "capped_max_feature_family_share": round(capped_max_feature_family_share, 4),
         "top_features": [{"feature": feature, "importance": round(float(score), 4)} for feature, score in top_features],
+        "capped_top_features": [
+            {"feature": feature, "importance": round(float(score), 4)} for feature, score in capped_top_features
+        ],
         "predictions": predictions.tolist(),
     }
 
@@ -731,6 +799,32 @@ def compute_feature_family_shares(feature_importance_pairs: list[tuple[str, floa
         family = feature_family(feature)
         shares[family] = shares.get(family, 0.0) + float(score)
     return dict(sorted(shares.items(), key=lambda item: item[1], reverse=True))
+
+
+def apply_feature_family_caps(
+    feature_importance_pairs: list[tuple[str, float]],
+    caps: dict[str, float] | None = None,
+    default_cap: float = DEFAULT_MAX_FEATURE_FAMILY_CAP,
+) -> tuple[list[tuple[str, float]], Dict[str, float], float]:
+    caps = caps or DEFAULT_FEATURE_FAMILY_CAPS
+    family_totals = compute_feature_family_shares(feature_importance_pairs)
+    family_scales: dict[str, float] = {}
+    excess_share = 0.0
+    for family, total in family_totals.items():
+        cap = float(caps.get(family, default_cap))
+        if total > cap > 0:
+            family_scales[family] = cap / total
+            excess_share += total - cap
+        else:
+            family_scales[family] = 1.0
+
+    capped_pairs = [
+        (feature, float(score) * family_scales.get(feature_family(feature), 1.0))
+        for feature, score in feature_importance_pairs
+    ]
+    capped_pairs.sort(key=lambda item: item[1], reverse=True)
+    capped_family_shares = compute_feature_family_shares(capped_pairs)
+    return capped_pairs, capped_family_shares, float(excess_share)
 
 
 def sanitize_feature_names(frame: pd.DataFrame) -> pd.DataFrame:
@@ -839,6 +933,8 @@ def write_markdown(path: Path, results, metadata):
         f"- Threshold: `{metadata['threshold']:.4f}`",
         f"- Pairs: {', '.join(metadata['pairs'])}",
         f"- Samples: `{metadata['samples']}`",
+        f"- Excluded feature families: `{', '.join(metadata.get('excluded_feature_families') or []) or 'none'}`",
+        f"- Removed feature count: `{metadata.get('removed_feature_count', 0)}`",
         "",
     ]
 
@@ -856,6 +952,10 @@ def write_markdown(path: Path, results, metadata):
                 f"- Long precision: `{result['long_precision']}`",
                 f"- Short precision: `{result['short_precision']}`",
                 f"- Dominant feature family: `{result.get('dominant_feature_family', '')}` (`{result.get('max_feature_family_share', 0.0)}`)",
+                f"- Feature family risk: `{result.get('feature_family_risk', 'normal')}`",
+                f"- Feature family cap applied: `{result.get('feature_family_cap_applied', False)}`",
+                f"- Feature family excess share: `{result.get('feature_family_excess_share', 0.0)}`",
+                f"- Capped dominant feature family: `{result.get('capped_dominant_feature_family', '')}` (`{result.get('capped_max_feature_family_share', 0.0)}`)",
                 f"- Mark premium family share: `{result.get('mark_premium_family_share', 0.0)}`",
                 f"- Orthogonal feature share: `{result.get('orthogonal_feature_share', 0.0)}`",
                 "",
@@ -870,12 +970,35 @@ def write_markdown(path: Path, results, metadata):
         lines.extend(
             [
                 "",
+                "### Capped Feature Families",
+                "",
+                "| Family | Capped Share |",
+                "| --- | ---: |",
+            ]
+        )
+        for family, share in (result.get("capped_feature_family_shares") or {}).items():
+            lines.append(f"| {family} | {share} |")
+        lines.extend(
+            [
+                "",
                 "| Feature | Importance |",
                 "| --- | ---: |",
             ]
         )
         for item in result["top_features"]:
             lines.append(f"| {item['feature']} | {item['importance']} |")
+        if result.get("capped_top_features"):
+            lines.extend(
+                [
+                    "",
+                    "### Capped Top Features",
+                    "",
+                    "| Feature | Capped Importance |",
+                    "| --- | ---: |",
+                ]
+            )
+            for item in result["capped_top_features"]:
+                lines.append(f"| {item['feature']} | {item['importance']} |")
         lines.append("")
         if result.get("pair_breakdown"):
             lines.extend(
@@ -894,7 +1017,7 @@ def write_markdown(path: Path, results, metadata):
                 )
             lines.append("")
 
-    path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(path, "\n".join(lines))
 
 
 def main():
@@ -923,6 +1046,11 @@ def main():
     parser.add_argument("--max-raw-rows-per-pair", type=int, default=60000, help="Cap raw rows per pair before feature building when no explicit date window is provided. 0 disables the cap.")
     parser.add_argument("--max-train-rows", type=int, default=90000, help="Cap rows used for model fitting to avoid container OOM. 0 disables the cap.")
     parser.add_argument("--max-test-rows", type=int, default=45000, help="Cap rows used for evaluation to avoid container OOM. 0 disables the cap.")
+    parser.add_argument(
+        "--exclude-feature-families",
+        default="",
+        help="Comma-separated feature families to remove for ablation tests, e.g. mark_premium,funding.",
+    )
     args = parser.parse_args()
 
     data_dir = Path(args.data_dir)
@@ -950,6 +1078,8 @@ def main():
         max_raw_rows_per_pair=args.max_raw_rows_per_pair,
     )
     feature_columns = get_feature_columns(dataset)
+    excluded_feature_families = parse_feature_family_list(args.exclude_feature_families)
+    feature_columns, removed_feature_columns = exclude_feature_families(feature_columns, excluded_feature_families)
     if train_start or train_end or test_start or test_end:
         train = slice_dataset_by_date(dataset, train_start, train_end)
         test = slice_dataset_by_date(dataset, test_start, test_end)
@@ -1028,14 +1158,14 @@ def main():
         "test_end": args.test_end or None,
         "models": requested_models,
         "profile_json": args.profile_json or None,
+        "excluded_feature_families": sorted(excluded_feature_families),
+        "removed_feature_count": len(removed_feature_columns),
+        "removed_features": removed_feature_columns,
     }
 
     json_path = output_prefix.with_suffix(".json")
     md_path = output_prefix.with_suffix(".md")
-    json_path.write_text(
-        json.dumps({"metadata": metadata, "results": results}, indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(json_path, {"metadata": metadata, "results": results})
     write_markdown(md_path, results, metadata)
 
     print(f"Wrote {json_path}")

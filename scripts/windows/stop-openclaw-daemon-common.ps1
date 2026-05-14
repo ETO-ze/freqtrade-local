@@ -27,6 +27,29 @@ $lockPath = Join-Path $StateDir "$DaemonName.lock"
 $statusPath = Join-Path $StateDir "$DaemonName-status.json"
 $sharedLockPath = Join-Path $StateDir $SharedRunLockName
 
+function Write-AtomicText {
+    param(
+        [string]$Path,
+        [string]$Value,
+        [string]$Encoding = 'UTF8'
+    )
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path $parent)) {
+        New-Item -Path $parent -ItemType Directory -Force | Out-Null
+    }
+    $tmp = "$Path.tmp"
+    Set-Content -Path $tmp -Value $Value -Encoding $Encoding
+    Move-Item -Path $tmp -Destination $Path -Force
+}
+
+function Write-AtomicJson {
+    param(
+        [string]$Path,
+        [object]$Value
+    )
+    Write-AtomicText -Path $Path -Value ($Value | ConvertTo-Json -Depth 10) -Encoding UTF8
+}
+
 function Get-DaemonProcesses {
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
         Where-Object {
@@ -82,7 +105,7 @@ function Stop-WorkflowDockerContainers {
     }
 }
 
-Set-Content -Path $stopPath -Value 'stop' -Encoding ASCII
+Write-AtomicText -Path $stopPath -Value 'stop' -Encoding ASCII
 Write-Host "Stop signal written: $stopPath" -ForegroundColor Cyan
 
 if (Test-Path $pidPath) {
@@ -157,7 +180,7 @@ $status | Add-Member -NotePropertyName completed_at -NotePropertyValue $now -For
 $status | Add-Member -NotePropertyName status -NotePropertyValue 'stopped' -Force
 $status | Add-Member -NotePropertyName next_run_after -NotePropertyValue $null -Force
 $status | Add-Member -NotePropertyName error -NotePropertyValue 'Stopped by user.' -Force
-$status | ConvertTo-Json -Depth 10 | Set-Content -Path $statusPath -Encoding UTF8
+Write-AtomicJson -Path $statusPath -Value $status
 
 Write-Host "Stopped $DisplayName daemon and cleaned stale state." -ForegroundColor Cyan
 

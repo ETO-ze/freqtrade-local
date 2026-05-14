@@ -21,6 +21,7 @@ MANUAL_PROMOTION_REPORT = REPORTS_ROOT / "openclaw-manual-promotion-latest.md"
 BACKTEST_RESULT_ROOT = PROJECT_ROOT / "user_data" / "backtest_results"
 PROJECT_ROADMAP_PATH = PROJECT_ROOT / "PROJECT_ROADMAP.json"
 WALK_FORWARD_RETRAIN_PATH = REPORTS_ROOT / "openclaw-walk-forward-retrain-stable.json"
+FEATURE_FAMILY_ABLATION_PATH = REPORTS_ROOT / "openclaw-feature-family-ablation-latest.json"
 
 
 def load_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -36,6 +37,15 @@ def read_text(path: Path, default: str = "") -> str:
     if not path.exists():
         return default
     return path.read_text(encoding="utf-8-sig")
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    tmp_path.replace(path)
 
 
 def parse_decision(markdown: str) -> str:
@@ -242,7 +252,7 @@ def build_live_trading_payload(server_sync: dict[str, Any], server_status: dict[
     status = server_sync.get("remote_status_after") or server_sync.get("remote_status_before") or server_status.get("remote_status_after") or server_status.get("remote_status_before") or {}
     restart = server_sync.get("restart") or {}
     protection = restart.get("open_trade_protection") or {}
-    check = protection.get("check") or {}
+    check = protection.get("check") or server_status.get("open_trade_check") or {}
     validation = server_sync.get("validation") or server_status.get("validation") or {}
     return {
         "generated_at": server_sync.get("generated_at") or server_status.get("generated_at") or "",
@@ -254,7 +264,9 @@ def build_live_trading_payload(server_sync: dict[str, Any], server_status: dict[
         "restart_action": restart.get("action"),
         "restart_reason": restart.get("reason"),
         "open_trade_count": check.get("open_trade_count"),
-        "open_trade_pairs": list(check.get("pairs") or []),
+        "open_trade_pairs": list(check.get("pairs") or check.get("open_trade_pairs") or []),
+        "open_trades": list(check.get("open_trades") or []),
+        "total_open_profit_abs": check.get("total_open_profit_abs"),
     }
 
 
@@ -302,10 +314,12 @@ def build_backtest_payload() -> dict[str, Any]:
     server_status = load_json(REPORTS_ROOT / "openclaw-server-status-latest.json")
     feedback = load_json(REPORTS_ROOT / "openclaw-trade-feedback-policy-candidate.json")
     approval_md = read_text(REPORTS_ROOT / "openclaw-auto-approval-latest.md")
+    approval_json = load_json(REPORTS_ROOT / "openclaw-auto-approval-latest.json")
     approved_history = as_history_list(load_json(REPORTS_ROOT / "openclaw-approved-history.json", default=[]))
     runtime_policy = load_json(PROJECT_ROOT / "user_data" / "model_runtime_policy.json")
     project_roadmap = load_json(PROJECT_ROADMAP_PATH, default={"items": []})
     walk_forward_retrain = load_json(WALK_FORWARD_RETRAIN_PATH, default={})
+    feature_family_ablation = load_json(FEATURE_FAMILY_ABLATION_PATH, default={}) or daily.get("feature_family_ablation") or {}
     active_config = load_json(PROJECT_ROOT / "user_data" / "config.openclaw-auto.json")
     active_factor = select_active_factor(approved_history, runtime_policy, active_config)
     active_pairs = manual_active_pairs() or list((active_config.get("exchange") or {}).get("pair_whitelist") or [])
@@ -334,6 +348,12 @@ def build_backtest_payload() -> dict[str, Any]:
         "approval": {
             "decision": parse_decision(approval_md),
             "thresholds": parse_thresholds(approval_md),
+            "approved_for_sync": approval_json.get("approved_for_sync"),
+            "approval_mode": approval_json.get("approval_mode") or "",
+            "gate_breakdown": approval_json.get("gate_breakdown") or {},
+            "stability": approval_json.get("stability") or {},
+            "probe_backtest": approval_json.get("probe_backtest") or {},
+            "promotion_protection": approval_json.get("promotion_protection") or {},
         },
     }
 
@@ -367,10 +387,17 @@ def build_backtest_payload() -> dict[str, Any]:
         "approval": {
             "decision": "active approved factor in use" if active_factor else parse_decision(approval_md),
             "thresholds": parse_thresholds(approval_md),
+            "approved_for_sync": approval_json.get("approved_for_sync"),
+            "approval_mode": approval_json.get("approval_mode") or "",
+            "gate_breakdown": approval_json.get("gate_breakdown") or {},
+            "stability": approval_json.get("stability") or {},
+            "probe_backtest": approval_json.get("probe_backtest") or {},
+            "promotion_protection": approval_json.get("promotion_protection") or {},
         },
         "backtest_detail": build_backtest_detail_payload(backtest),
         "live_trading": build_live_trading_payload(server_sync, server_status),
         "walk_forward_retrain": walk_forward_retrain,
+        "feature_family_ablation": feature_family_ablation,
         "project_roadmap": project_roadmap,
         "approved_history": approved_history,
     }
@@ -541,16 +568,25 @@ def upload_payloads(settings: dict[str, Any], payloads: dict[str, dict[str, Any]
                 f"{name}.json": payload for name, payload in payloads.items()
             },
         }
-        remote_script = (
-            "python3 -c \"import json, pathlib, sys; "
-            "bundle=json.load(sys.stdin); "
-            "root=pathlib.Path(bundle['remote_root']); root.mkdir(parents=True, exist_ok=True); "
-            "[root.joinpath(name).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8') "
-            "for name, payload in bundle['files'].items()]\""
-        )
+        remote_python = """
+import json
+import pathlib
+import sys
+
+bundle = json.load(sys.stdin)
+root = pathlib.Path(bundle["remote_root"])
+root.mkdir(parents=True, exist_ok=True)
+for name, payload in bundle["files"].items():
+    target = root.joinpath(name)
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(target)
+"""
         run_remote_with_stdin(
             client,
-            remote_script,
+            f"python3 -c {quote_single(remote_python)}",
             json.dumps(upload_bundle, ensure_ascii=False),
             timeout=120,
         )
@@ -559,12 +595,8 @@ def upload_payloads(settings: dict[str, Any], payloads: dict[str, dict[str, Any]
 
 
 def write_local_payloads(payloads: dict[str, dict[str, Any]]) -> None:
-    LOCAL_PUBLIC_ROOT.mkdir(parents=True, exist_ok=True)
     for name, payload in payloads.items():
-        (LOCAL_PUBLIC_ROOT / f"{name}.json").write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        atomic_write_json(LOCAL_PUBLIC_ROOT / f"{name}.json", payload)
 
 
 def main() -> int:

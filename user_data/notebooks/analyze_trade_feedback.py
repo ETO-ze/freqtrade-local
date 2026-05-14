@@ -7,6 +7,19 @@ from pathlib import Path
 from typing import Any
 
 
+def atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+
+
+def atomic_write_json(path: Path, payload: Any) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    atomic_write_text(path, text)
+
+
 def load_backtest_strategy(zip_path: Path, strategy: str) -> dict[str, Any] | None:
     try:
         with zipfile.ZipFile(zip_path) as archive:
@@ -112,7 +125,7 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
             f"{item['profit_factor']} | {item['profit_total_pct']} | {item['max_drawdown_pct']} | "
             f"{item['suggested_action']} |"
         )
-    path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(path, "\n".join(lines))
 
 
 def main() -> int:
@@ -133,8 +146,8 @@ def main() -> int:
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_report.parent.mkdir(parents=True, exist_ok=True)
     candidate_policy.parent.mkdir(parents=True, exist_ok=True)
-    output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    candidate_policy.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(output_json, payload)
+    atomic_write_json(candidate_policy, payload)
     write_report(output_report, payload)
     print(f"Wrote {output_json}")
     print(f"Wrote {output_report}")

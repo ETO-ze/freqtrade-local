@@ -7,6 +7,8 @@ user_data/*.sqlite
 user_data/*.sqlite-shm
 user_data/*.sqlite-wal
 reports/
+dashboard-data/
+backups/
 __pycache__/
 openclaw.notification.json
 server.openclaw-sync.local.json
@@ -20,7 +22,10 @@ user_data/config.openclaw-candidate-stable-8.json
 user_data/config.openclaw-candidate-stable-10.json
 user_data/config.backtest.strategylab.json
 user_data/model_runtime_policy.json
+user_data/model_runtime_policy.debug.json
 user_data/model_runtime_tuning.auto.json
+user_data/backtest_cache/
+user_data/config.openclaw-auto.before-*.json
 user_data/config.backtest.okx-futures-alt-local-dynamic*.json
 user_data/config.openclaw-candidate-*.json
 build/

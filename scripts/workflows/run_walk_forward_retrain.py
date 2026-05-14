@@ -1,11 +1,25 @@
 import argparse
 import json
 import subprocess
+from statistics import pstdev
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+
+def atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+
+
+def atomic_write_json(path: Path, payload: Any) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    atomic_write_text(path, text)
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:
@@ -123,6 +137,96 @@ def model_weight(result: dict[str, Any]) -> float:
     return round(max(weight, 0.0), 4)
 
 
+def summarize_stability(rows: list[dict[str, Any]], required_passed_windows: int) -> dict[str, Any]:
+    window_count = len(rows)
+    ok_rows = [row for row in rows if row.get("ok")]
+    passed_rows = [row for row in ok_rows if row.get("passed")]
+    failed_rows = [row for row in rows if not row.get("ok")]
+    weights = [safe_float(row.get("best_weight")) for row in ok_rows]
+    balanced_scores = [safe_float(row.get("balanced_accuracy")) for row in ok_rows]
+    orthogonal_shares = [safe_float(row.get("orthogonal_feature_share")) for row in ok_rows]
+    family_shares = [safe_float(row.get("max_feature_family_share")) for row in ok_rows]
+    model_counts: dict[str, int] = {}
+    family_counts: dict[str, int] = {}
+    for row in ok_rows:
+        model = str(row.get("best_model") or "n/a")
+        family = str(row.get("dominant_feature_family") or "n/a")
+        model_counts[model] = model_counts.get(model, 0) + 1
+        family_counts[family] = family_counts.get(family, 0) + 1
+
+    consensus_model, consensus_count = max(model_counts.items(), key=lambda item: item[1], default=("n/a", 0))
+    dominant_family, dominant_family_count = max(family_counts.items(), key=lambda item: item[1], default=("n/a", 0))
+    memory_failure_count = sum(1 for row in failed_rows if "exit code 137" in str(row.get("error", "")).lower())
+    passed_window_ratio = len(passed_rows) / max(window_count, 1)
+    model_consensus_ratio = consensus_count / max(len(ok_rows), 1)
+    dominant_family_ratio = dominant_family_count / max(len(ok_rows), 1)
+    average_weight = sum(weights) / len(weights) if weights else 0.0
+    min_weight = min(weights) if weights else 0.0
+    weight_std = pstdev(weights) if len(weights) > 1 else 0.0
+    average_balanced_accuracy = sum(balanced_scores) / len(balanced_scores) if balanced_scores else 0.0
+    average_orthogonal_share = sum(orthogonal_shares) / len(orthogonal_shares) if orthogonal_shares else 0.0
+    min_orthogonal_share = min(orthogonal_shares) if orthogonal_shares else 0.0
+    average_max_family_share = sum(family_shares) / len(family_shares) if family_shares else 0.0
+    max_family_share = max(family_shares) if family_shares else 0.0
+    low_orthogonal_window_count = sum(1 for value in orthogonal_shares if value < 0.15)
+    high_family_concentration_window_count = sum(1 for value in family_shares if value > 0.55)
+
+    blockers: list[str] = []
+    if failed_rows:
+        blockers.append("failed_windows")
+    if any(row.get("dry_run") for row in rows):
+        blockers.append("dry_run_no_training")
+    if memory_failure_count:
+        blockers.append("docker_memory_exit_137")
+    if len(passed_rows) < required_passed_windows:
+        blockers.append("insufficient_passed_windows")
+    if high_family_concentration_window_count:
+        blockers.append("feature_family_concentration")
+    if low_orthogonal_window_count:
+        blockers.append("low_orthogonal_factor_share")
+    if model_consensus_ratio < 0.67 and len(ok_rows) >= 2:
+        blockers.append("weak_model_consensus")
+
+    if not blockers and passed_window_ratio >= 0.67 and model_consensus_ratio >= 0.67:
+        recommended_gate_mode = "semi_gate_ready"
+        stability_grade = "A"
+    elif memory_failure_count or failed_rows:
+        recommended_gate_mode = "report_only_blocked"
+        stability_grade = "D"
+    elif passed_window_ratio >= 0.34 and average_weight >= 0.22:
+        recommended_gate_mode = "observe_only"
+        stability_grade = "C"
+    else:
+        recommended_gate_mode = "report_only_blocked"
+        stability_grade = "D"
+
+    return {
+        "stability_grade": stability_grade,
+        "recommended_gate_mode": recommended_gate_mode,
+        "blockers": blockers,
+        "failed_window_count": len(failed_rows),
+        "failed_window_names": [str(row.get("name")) for row in failed_rows],
+        "memory_failure_count": memory_failure_count,
+        "passed_window_ratio": round(passed_window_ratio, 4),
+        "model_consensus": consensus_model,
+        "model_consensus_count": consensus_count,
+        "model_consensus_ratio": round(model_consensus_ratio, 4),
+        "dominant_feature_family": dominant_family,
+        "dominant_feature_family_count": dominant_family_count,
+        "dominant_feature_family_ratio": round(dominant_family_ratio, 4),
+        "average_weight": round(average_weight, 4),
+        "min_weight": round(min_weight, 4),
+        "weight_std": round(weight_std, 4),
+        "average_balanced_accuracy": round(average_balanced_accuracy, 4),
+        "average_orthogonal_feature_share": round(average_orthogonal_share, 4),
+        "min_orthogonal_feature_share": round(min_orthogonal_share, 4),
+        "average_max_feature_family_share": round(average_max_family_share, 4),
+        "max_feature_family_share": round(max_family_share, 4),
+        "low_orthogonal_window_count": low_orthogonal_window_count,
+        "high_family_concentration_window_count": high_family_concentration_window_count,
+    }
+
+
 def run_window(args, user_data: Path, pairs: list[str], window: dict[str, str]) -> dict[str, Any]:
     window_prefix = f"{args.output_prefix.rstrip('/')}/{window['name']}"
     if args.dry_run:
@@ -226,6 +330,7 @@ def run_window(args, user_data: Path, pairs: list[str], window: dict[str, str]) 
 
 
 def write_report(path: Path, payload: dict[str, Any]) -> None:
+    stability = payload.get("stability_summary") or {}
     lines = [
         "# OpenClaw Walk-Forward Retrain",
         "",
@@ -236,6 +341,20 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
         f"- Required passed windows: {payload['required_passed_windows']}",
         f"- Best model consensus: {payload['best_model_consensus']}",
         f"- Hard blocks: {', '.join(payload['hard_blocks']) if payload['hard_blocks'] else 'none'}",
+        "",
+        "## Stability Summary",
+        "",
+        f"- Stability grade: {stability.get('stability_grade', 'n/a')}",
+        f"- Recommended gate mode: {stability.get('recommended_gate_mode', 'n/a')}",
+        f"- Blockers: {', '.join(stability.get('blockers') or []) if stability.get('blockers') else 'none'}",
+        f"- Passed window ratio: {stability.get('passed_window_ratio', 0)}",
+        f"- Model consensus: {stability.get('model_consensus', 'n/a')} ({stability.get('model_consensus_ratio', 0)})",
+        f"- Dominant feature family: {stability.get('dominant_feature_family', 'n/a')} ({stability.get('dominant_feature_family_ratio', 0)})",
+        f"- Avg/min weight: {stability.get('average_weight', 0)} / {stability.get('min_weight', 0)}",
+        f"- Avg orthogonal share: {stability.get('average_orthogonal_feature_share', 0)}",
+        f"- Avg/max feature-family share: {stability.get('average_max_feature_family_share', 0)} / {stability.get('max_feature_family_share', 0)}",
+        f"- Failed windows: {stability.get('failed_window_count', 0)}",
+        f"- Docker memory failures: {stability.get('memory_failure_count', 0)}",
         "",
         "| Window | Train | Test | Best Model | Weight | Balanced Acc | Long P | Short P | Orthogonal | Family | Train Rows | Test Rows | Passed |",
         "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- |",
@@ -249,8 +368,7 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
             f"{row.get('orthogonal_feature_share', 0)} | {row.get('dominant_feature_family', '')} | "
             f"{row.get('train_samples', 0)} | {row.get('test_samples', 0)} | {row.get('passed', False)} |"
         )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(path, "\n".join(lines))
 
 
 def main() -> int:
@@ -310,6 +428,7 @@ def main() -> int:
     consensus = max(model_counts.items(), key=lambda item: item[1])[0] if model_counts else "n/a"
     average_weight = sum(safe_float(row.get("best_weight")) for row in ok_rows) / len(ok_rows) if ok_rows else 0.0
     score = round((passed_windows / max(len(windows), 1) * 60.0) + min(average_weight / 0.55, 1.0) * 40.0, 2)
+    stability_summary = summarize_stability(rows, args.required_passed_windows)
     payload = {
         "generated_at": pd.Timestamp.now(tz="UTC").isoformat(),
         "passed": not hard_blocks,
@@ -322,12 +441,12 @@ def main() -> int:
         "data_start": data_start.isoformat(),
         "data_end": data_end.isoformat(),
         "pairs": pairs,
+        "stability_summary": stability_summary,
         "windows": rows,
     }
     output_json = Path(args.output_json)
     output_md = Path(args.output_md)
-    output_json.parent.mkdir(parents=True, exist_ok=True)
-    output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(output_json, payload)
     write_report(output_md, payload)
     print(f"Wrote {output_json}")
     print(f"Wrote {output_md}")

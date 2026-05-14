@@ -27,6 +27,15 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    tmp_path.replace(path)
+
+
 def safe_float(value: Any, default: float = 0.0) -> float:
     try:
         if value in (None, "", "N/A", "n/a"):
@@ -231,9 +240,8 @@ def read_live_trading(api_server: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> int:
-    PUBLIC_ROOT.mkdir(parents=True, exist_ok=True)
     payload = build_status()
-    PUBLIC_STATUS_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(PUBLIC_STATUS_PATH, payload)
     print(f"Wrote {PUBLIC_STATUS_PATH}")
     return 0
 

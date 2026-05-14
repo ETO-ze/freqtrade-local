@@ -18,6 +18,19 @@ from train_alt_tree_models import (
 )
 
 
+def atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+
+
+def atomic_write_json(path: Path, payload) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    atomic_write_text(path, text)
+
+
 FEATURE_GROUPS = {
     "returns": ["ret_1", "ret_3", "ret_6", "ret_12", "ret_24"],
     "candle": ["range_pct", "body_pct", "direction", "upper_wick_pct", "lower_wick_pct"],
@@ -303,8 +316,8 @@ def main():
     profile_json = output_prefix.with_suffix(".profile.json")
     result_json = output_prefix.with_suffix(".json")
     result_md = output_prefix.with_suffix(".md")
-    profile_json.write_text(json.dumps(best["profile"], indent=2), encoding="utf-8")
-    result_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_json(profile_json, best["profile"])
+    atomic_write_json(result_json, payload)
 
     lines = [
         "# Alt Factor Evolution Report",
@@ -339,7 +352,7 @@ def main():
     lines.extend(["## History", ""])
     for item in history:
         lines.append(f"- Generation {item['generation']}: best fitness {item['best_fitness']} | groups {', '.join(item['groups'])}")
-    result_md.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(result_md, "\n".join(lines))
 
     print(f"Wrote {profile_json}")
     print(f"Wrote {result_json}")

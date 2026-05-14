@@ -8,10 +8,29 @@ const payload = ref<BacktestPayload | null>(null)
 
 const activeMetrics = computed(() => payload.value?.active_factor?.metrics || payload.value?.metrics || {})
 const candidateMetrics = computed(() => payload.value?.latest_candidate?.metrics || {})
+const approvalChecks = computed(() => {
+  const gate = payload.value?.latest_candidate?.approval?.gate_breakdown || payload.value?.approval?.gate_breakdown
+  const standard = gate?.standard_checks || []
+  const experimental = gate?.experimental_checks || []
+  return [
+    ...standard.map((item) => ({ ...item, group: 'standard' })),
+    ...experimental.map((item) => ({ ...item, group: 'experimental' })),
+  ]
+})
+const probeBacktest = computed(() => {
+  const probe = payload.value?.latest_candidate?.approval?.probe_backtest || payload.value?.approval?.probe_backtest
+  return probe && Object.keys(probe).length ? probe : null
+})
+const probeMetrics = computed(() => probeBacktest.value?.summary?.metrics || {})
 const backtestDetail = computed(() => payload.value?.backtest_detail)
 const liveTrading = computed(() => payload.value?.live_trading)
 const walkForward = computed(() => {
   const data = payload.value?.walk_forward_retrain
+  return data && Object.keys(data).length ? data : null
+})
+const walkForwardStability = computed(() => walkForward.value?.stability_summary || null)
+const featureFamilyAblation = computed(() => {
+  const data = payload.value?.feature_family_ablation
   return data && Object.keys(data).length ? data : null
 })
 const equityCurve = computed(() => backtestDetail.value?.equity_curve || [])
@@ -179,6 +198,16 @@ onMounted(() => {
         <div><span>共识模型</span><strong>{{ walkForward.best_model_consensus || 'n/a' }}</strong></div>
         <div><span>硬阻断</span><strong>{{ walkForward.hard_blocks?.join(', ') || 'none' }}</strong></div>
       </div>
+      <div class="key-grid status-grid-live" v-if="walkForwardStability">
+        <div><span>稳定等级</span><strong>{{ walkForwardStability.stability_grade || 'n/a' }}</strong></div>
+        <div><span>建议模式</span><strong>{{ walkForwardStability.recommended_gate_mode || 'n/a' }}</strong></div>
+        <div><span>模型共识率</span><strong>{{ walkForwardStability.model_consensus_ratio ?? 'n/a' }}</strong></div>
+        <div><span>主导特征族</span><strong>{{ walkForwardStability.dominant_feature_family || 'n/a' }}</strong></div>
+        <div><span>特征族占比</span><strong>{{ walkForwardStability.max_feature_family_share ?? 'n/a' }}</strong></div>
+        <div><span>正交因子占比</span><strong>{{ walkForwardStability.average_orthogonal_feature_share ?? 'n/a' }}</strong></div>
+        <div><span>内存失败</span><strong>{{ walkForwardStability.memory_failure_count ?? 0 }}</strong></div>
+        <div><span>阻断原因</span><strong>{{ walkForwardStability.blockers?.join(', ') || 'none' }}</strong></div>
+      </div>
       <div class="list-table compact-table">
         <div v-for="item in walkForward.windows || []" :key="item.name" class="list-row multi">
           <div>
@@ -193,6 +222,24 @@ onMounted(() => {
           </div>
           <span class="badge">{{ item.ok ? 'ok' : 'failed' }}</span>
         </div>
+      </div>
+    </article>
+
+    <article class="panel" v-if="featureFamilyAblation">
+      <p class="panel-kicker">FEATURE ABLATION</p>
+      <h3>特征家族消融对照</h3>
+      <p class="panel-copy">
+        该模块用于观察排除 mark premium 等特征家族后模型是否仍有可用信号。默认只读展示，不参与自动 promotion。
+      </p>
+      <div class="key-grid">
+        <div><span>状态</span><strong>{{ featureFamilyAblation.status || 'n/a' }}</strong></div>
+        <div><span>排除家族</span><strong>{{ featureFamilyAblation.exclude || 'n/a' }}</strong></div>
+        <div><span>主模型</span><strong>{{ featureFamilyAblation.main_best_model || 'n/a' }}</strong></div>
+        <div><span>主权重</span><strong>{{ featureFamilyAblation.main_best_weight ?? 'n/a' }}</strong></div>
+        <div><span>消融模型</span><strong>{{ featureFamilyAblation.ablation_best_model || 'n/a' }}</strong></div>
+        <div><span>权重差</span><strong>{{ featureFamilyAblation.weight_delta ?? 'n/a' }}</strong></div>
+        <div><span>风险</span><strong>{{ featureFamilyAblation.family_risk || 'n/a' }}</strong></div>
+        <div><span>说明</span><strong>{{ featureFamilyAblation.note || 'n/a' }}</strong></div>
       </div>
     </article>
 
@@ -223,6 +270,23 @@ onMounted(() => {
         <div><span>交易</span><strong>{{ formatValue(candidateMetrics.trade_count) }}</strong></div>
         <div><span>结论</span><strong>{{ payload.latest_candidate.approval.decision || 'n/a' }}</strong></div>
       </div>
+      <div class="list-table compact-table" v-if="approvalChecks.length">
+        <div v-for="item in approvalChecks" :key="`${item.group}-${item.name}`" class="list-row">
+          <div>
+            <strong>{{ item.group }} / {{ item.name }}</strong>
+            <p>{{ item.actual }} {{ item.op }} {{ item.threshold }}</p>
+          </div>
+          <strong>{{ item.passed ? 'PASS' : 'FAIL' }}</strong>
+        </div>
+      </div>
+      <div class="key-grid" v-if="probeBacktest">
+        <div><span>Probe</span><strong>{{ probeBacktest.enabled ? 'enabled' : 'disabled' }}</strong></div>
+        <div><span>Probe 池</span><strong>{{ probeBacktest.allowed_dynamic_pools || 'n/a' }}</strong></div>
+        <div><span>Probe 收益</span><strong>{{ formatPct(probeMetrics.total_profit_pct) }}</strong></div>
+        <div><span>Probe PF</span><strong>{{ formatValue(probeMetrics.profit_factor) }}</strong></div>
+        <div><span>Probe 回撤</span><strong>{{ formatPct(probeMetrics.max_drawdown_pct) }}</strong></div>
+        <div><span>Probe 交易</span><strong>{{ formatValue(probeMetrics.trade_count) }}</strong></div>
+      </div>
     </article>
 
     <article class="panel span-2" v-if="liveTrading">
@@ -232,6 +296,7 @@ onMounted(() => {
         <div><span>Bot</span><strong>{{ liveTrading.bot_status || 'n/a' }}</strong></div>
         <div><span>API</span><strong>{{ liveTrading.api_ok ? 'healthy' : 'unknown' }} / {{ liveTrading.api_http_code || 'n/a' }}</strong></div>
         <div><span>持仓数量</span><strong>{{ liveTrading.open_trade_count ?? 'n/a' }}</strong></div>
+        <div><span>持仓浮盈</span><strong>{{ liveTrading.total_open_profit_abs ?? 'n/a' }}</strong></div>
         <div><span>同步模式</span><strong>{{ liveTrading.mode || 'n/a' }}</strong></div>
         <div><span>重启保护</span><strong>{{ liveTrading.restart_action || 'n/a' }}</strong></div>
         <div><span>同步时间</span><strong>{{ liveTrading.generated_at || 'n/a' }}</strong></div>
@@ -244,6 +309,14 @@ onMounted(() => {
         <div>
           <span>保护说明</span>
           <p>{{ liveTrading.restart_reason || 'n/a' }}</p>
+        </div>
+      </div>
+      <div class="list-table compact-table" v-if="liveTrading.open_trades?.length">
+        <div v-for="item in liveTrading.open_trades" :key="`${item.pair}-${item.open_date}`" class="list-row multi">
+          <div>
+            <strong>{{ shortPair(item.pair || '') }} / {{ item.direction || 'n/a' }} / {{ item.leverage ?? 'n/a' }}x</strong>
+            <p>浮盈 {{ item.profit_abs ?? 'n/a' }} / {{ item.profit_pct ?? 'n/a' }}% | 开仓 {{ item.open_date || 'n/a' }}</p>
+          </div>
         </div>
       </div>
     </article>

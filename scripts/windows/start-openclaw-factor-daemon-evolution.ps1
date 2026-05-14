@@ -14,6 +14,29 @@ if (-not (Test-Path $daemonReportDir)) {
     New-Item -Path $daemonReportDir -ItemType Directory -Force | Out-Null
 }
 
+function Write-AtomicText {
+    param(
+        [string]$Path,
+        [string]$Value,
+        [string]$Encoding = 'UTF8'
+    )
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path $parent)) {
+        New-Item -Path $parent -ItemType Directory -Force | Out-Null
+    }
+    $tmp = "$Path.tmp"
+    Set-Content -Path $tmp -Value $Value -Encoding $Encoding
+    Move-Item -Path $tmp -Destination $Path -Force
+}
+
+function Write-AtomicJson {
+    param(
+        [string]$Path,
+        [object]$Value
+    )
+    Write-AtomicText -Path $Path -Value ($Value | ConvertTo-Json -Depth 10) -Encoding UTF8
+}
+
 $stopPath = Join-Path $daemonReportDir 'factor-daemon-evolution.stop'
 if (Test-Path $stopPath) {
     Remove-Item $stopPath -Force -ErrorAction SilentlyContinue
@@ -50,34 +73,16 @@ if (Test-Path $pidPath) {
 
 if ($existingDaemon) {
     $statusName = if ($statusData) { [string]$statusData.status } else { '' }
-    if ($statusName -in @('running', 'starting')) {
-        Write-Host "OpenClaw evolution daemon process appears to be running already. PID: $($existingDaemon.ProcessId)" -ForegroundColor Yellow
-        exit 0
-    }
-    try {
-        Stop-Process -Id $existingDaemon.ProcessId -Force -ErrorAction Stop
-        Write-Host "Removed stale evolution daemon PID: $($existingDaemon.ProcessId)" -ForegroundColor Yellow
-    }
-    catch {
-        Write-Host "Failed to remove stale evolution daemon PID $($existingDaemon.ProcessId): $($_.Exception.Message)" -ForegroundColor Yellow
-    }
+    Write-Host "OpenClaw evolution daemon process appears to be running already. PID: $($existingDaemon.ProcessId), status: $statusName" -ForegroundColor Yellow
+    exit 0
 }
 
 if ($existingPid) {
     $pidProcess = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
     if ($pidProcess) {
         $statusName = if ($statusData) { [string]$statusData.status } else { '' }
-        if ($statusName -in @('running', 'starting')) {
-            Write-Host "OpenClaw evolution daemon PID file points to a live process already. PID: $existingPid" -ForegroundColor Yellow
-            exit 0
-        }
-        try {
-            Stop-Process -Id $existingPid -Force -ErrorAction Stop
-            Write-Host "Removed stale evolution PID from PID file: $existingPid" -ForegroundColor Yellow
-        }
-        catch {
-            Write-Host ("Failed to remove stale evolution PID {0}: {1}" -f $existingPid, $_.Exception.Message) -ForegroundColor Yellow
-        }
+        Write-Host "OpenClaw evolution daemon PID file points to a live process already. PID: $existingPid, status: $statusName" -ForegroundColor Yellow
+        exit 0
     }
 }
 
@@ -106,7 +111,7 @@ $process = Start-Process powershell `
     -WindowStyle Hidden `
     -PassThru
 
-Set-Content -Path $pidPath -Value $process.Id -Encoding ASCII
+Write-AtomicText -Path $pidPath -Value $process.Id -Encoding ASCII
 $now = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 Start-Sleep -Milliseconds 300
 $currentStatus = $null
@@ -132,7 +137,7 @@ if (-not $currentStatus -or [int]$currentStatus.pid -ne $process.Id -or [string]
         next_run_after        = $null
         error                 = $null
     }
-    $startingStatus | ConvertTo-Json -Depth 10 | Set-Content -Path $statusPath -Encoding UTF8
+    Write-AtomicJson -Path $statusPath -Value $startingStatus
 }
 Write-Host "Started OpenClaw evolution daemon in background. PID=$($process.Id)" -ForegroundColor Cyan
 Write-Host "Stdout: $stdoutPath" -ForegroundColor Cyan

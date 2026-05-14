@@ -44,11 +44,19 @@ def load_json(path: Path) -> Any:
 
 
 def write_json(path: Path, payload: Any) -> None:
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(text, encoding="utf-8")
+    tmp_path.replace(path)
 
 
 def write_text(path: Path, content: str) -> None:
-    path.write_text(content, encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    tmp_path.replace(path)
 
 
 def ensure_parent(path: Path) -> None:
@@ -120,6 +128,14 @@ class RemoteHost:
         self.mkdir_p(remote_parent)
         with self.sftp.open(remote_path, "w") as handle:
             handle.write(content)
+
+    def put_text_atomic(self, content: str, remote_path: str) -> None:
+        remote_parent = posixpath.dirname(remote_path)
+        self.mkdir_p(remote_parent)
+        tmp_path = f"{remote_path}.tmp"
+        with self.sftp.open(tmp_path, "w") as handle:
+            handle.write(content)
+        self.run(f"mv -f {quote_single(tmp_path)} {quote_single(remote_path)}")
 
 
 def remote_detect(host: RemoteHost) -> dict[str, Any]:
@@ -541,7 +557,7 @@ def main() -> int:
             validation=validation,
             settings=settings,
         )
-        host.put_text(
+        host.put_text_atomic(
             json.dumps(public_sync_payload, ensure_ascii=False, indent=2),
             posixpath.join(settings.remote_dir, "dashboard-data", "last-sync.json"),
         )

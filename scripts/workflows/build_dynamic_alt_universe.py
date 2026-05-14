@@ -30,6 +30,19 @@ DEFAULT_DENY_SYMBOLS = {
 }
 
 
+def atomic_write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+
+
+def atomic_write_json(path: Path, payload: Dict) -> None:
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    json.loads(text)
+    atomic_write_text(path, text)
+
+
 def stem_to_pair(stem: str) -> str:
     parts = stem.split("_")
     if len(parts) < 3:
@@ -177,7 +190,7 @@ def write_json_cache(path: Path, records: List[Dict]) -> None:
         "fetched_at": pd.Timestamp.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
         "records": records,
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_json(path, payload)
 
 
 def fetch_coingecko_markets(
@@ -470,7 +483,16 @@ def load_market_metrics(data_dir: Path, exclude_pairs: set[str], min_rows_72h: i
     return metrics
 
 
-def build_output(metrics: List[Dict], top_n: int, benchmark_regime: Dict | None = None, market_cap_stats: Dict | None = None) -> Dict:
+def build_output(
+    metrics: List[Dict],
+    top_n: int,
+    benchmark_regime: Dict | None = None,
+    market_cap_stats: Dict | None = None,
+    core_n: int = 15,
+    expand_n: int = 40,
+    ranking_n: int = 80,
+    observe_min_score: float = 45.0,
+) -> Dict:
     if not metrics:
         raise RuntimeError("No eligible pairs were found for the dynamic universe.")
 
@@ -543,15 +565,43 @@ def build_output(metrics: List[Dict], top_n: int, benchmark_regime: Dict | None 
         ascending=[False, False, False],
     ).reset_index(drop=True)
     selected = ranked.head(top_n).copy()
+    ranking_limit = max(int(top_n), int(core_n), int(expand_n), int(ranking_n))
+    ranked_report = ranked.head(ranking_limit).copy()
+    core_limit = max(0, min(int(core_n), len(ranked_report)))
+    expand_limit = max(core_limit, min(int(expand_n), len(ranked_report)))
+
+    def assign_pool(row: pd.Series) -> str:
+        rank_index = int(row.name)
+        score = float(row.get("overall_score", 0.0) or 0.0)
+        if rank_index < core_limit:
+            return "core"
+        if rank_index < expand_limit:
+            return "expand"
+        if score >= observe_min_score:
+            return "observe"
+        return "pause"
+
+    ranked_report["pool"] = ranked_report.apply(assign_pool, axis=1)
+    pools = {
+        "core": ranked_report.loc[ranked_report["pool"] == "core", "pair"].tolist(),
+        "expand": ranked_report.loc[ranked_report["pool"] == "expand", "pair"].tolist(),
+        "observe": ranked_report.loc[ranked_report["pool"] == "observe", "pair"].tolist(),
+        "pause": ranked_report.loc[ranked_report["pool"] == "pause", "pair"].tolist(),
+    }
 
     return {
         "generated_at": pd.Timestamp.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
         "freshest_market_timestamp": str(freshest),
         "top_n": int(top_n),
+        "core_n": int(core_n),
+        "expand_n": int(expand_n),
+        "ranking_n": int(ranking_limit),
+        "observe_min_score": float(observe_min_score),
         "selected_pairs": selected["pair"].tolist(),
+        "pools": pools,
         "benchmark_regime": benchmark_regime or {},
         "market_cap_filter": market_cap_stats or {},
-        "ranking": ranked.to_dict(orient="records"),
+        "ranking": ranked_report.to_dict(orient="records"),
     }
 
 
@@ -562,6 +612,7 @@ def write_markdown(path: Path, payload: Dict) -> None:
         f"- Generated: {payload['generated_at']}",
         f"- Freshest market timestamp: {payload['freshest_market_timestamp']}",
         f"- Selected count: {len(payload['selected_pairs'])}",
+        f"- Pool limits: core={payload.get('core_n', 0)} | expand={payload.get('expand_n', 0)} | ranking={payload.get('ranking_n', 0)}",
     ]
     regime = payload.get("benchmark_regime") or {}
     if regime:
@@ -579,22 +630,31 @@ def write_markdown(path: Path, payload: Dict) -> None:
         "",
         ", ".join(payload["selected_pairs"]) if payload["selected_pairs"] else "none",
         "",
+        "## Pool Split",
+        "",
+    ]
+    pools = payload.get("pools") or {}
+    for pool_name in ("core", "expand", "observe", "pause"):
+        pairs = pools.get(pool_name) or []
+        lines.append(f"- {pool_name}: {', '.join(pairs) if pairs else 'none'}")
+    lines += [
+        "",
         "## Ranking",
         "",
-        "| Pair | Score | Market Rank | History Days | 24h Ret | 72h Ret | Relative Strength | Regime Align | Trend Confirm | Trend Dir | Momentum | Quote Vol 24h | Quote Vol 72h Avg | Persistence | Stability | Funding Risk | Volatility | Recency |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Pair | Pool | Score | Market Rank | History Days | 24h Ret | 72h Ret | Relative Strength | Regime Align | Trend Confirm | Trend Dir | Momentum | Quote Vol 24h | Quote Vol 72h Avg | Persistence | Stability | Funding Risk | Volatility | Recency |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for item in payload["ranking"]:
         market_rank = item.get("market_cap_rank") or ""
         lines.append(
-            f"| {item['pair']} | {item['overall_score']} | {market_rank} | {item.get('history_days', 0)} | "
+            f"| {item['pair']} | {item.get('pool', '')} | {item['overall_score']} | {market_rank} | {item.get('history_days', 0)} | "
             f"{item.get('price_ret_24h', 0)} | {item.get('price_ret_72h', 0)} | {round(float(item.get('relative_strength_score', 0)), 4)} | "
             f"{round(float(item.get('regime_alignment_score', 0)), 4)} | {round(float(item.get('trend_confirmation_score', 0)), 4)} | "
             f"{round(float(item.get('trend_direction_score', 0)), 4)} | {item.get('directional_momentum_score', 0)} | {item['quote_volume_24h']} | "
             f"{item['quote_volume_72h_avg']} | {item['persistence_score']} | {item['stability_score']} | "
             f"{item['funding_score']} | {item['volatility_score']} | {round(float(item['recency_score']), 4)} |"
         )
-    path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text(path, "\n".join(lines))
 
 
 def main() -> None:
@@ -605,6 +665,10 @@ def main() -> None:
     parser.add_argument("--output-json", required=True)
     parser.add_argument("--output-md", required=True)
     parser.add_argument("--top-n", type=int, default=18)
+    parser.add_argument("--core-n", type=int, default=15)
+    parser.add_argument("--expand-n", type=int, default=40)
+    parser.add_argument("--ranking-n", type=int, default=80)
+    parser.add_argument("--observe-min-score", type=float, default=45.0)
     parser.add_argument("--exclude-pairs", default="BTC/USDT:USDT,ETH/USDT:USDT")
     parser.add_argument("--min-rows-72h", type=int, default=720)
     parser.add_argument("--min-history-days", type=float, default=0.0)
@@ -660,7 +724,16 @@ def main() -> None:
             market_cap_stats = {"source": "coingecko", "error": str(exc), "fallback": "local_metrics"}
 
     benchmark_regime = build_benchmark_regime(data_dir)
-    payload = build_output(metrics, args.top_n, benchmark_regime=benchmark_regime, market_cap_stats=market_cap_stats)
+    payload = build_output(
+        metrics,
+        args.top_n,
+        benchmark_regime=benchmark_regime,
+        market_cap_stats=market_cap_stats,
+        core_n=args.core_n,
+        expand_n=args.expand_n,
+        ranking_n=args.ranking_n,
+        observe_min_score=args.observe_min_score,
+    )
 
     base_config = json.loads(base_config_path.read_text(encoding="utf-8"))
     base_config["exchange"]["pair_whitelist"] = payload["selected_pairs"]
@@ -669,8 +742,8 @@ def main() -> None:
     output_json_path.parent.mkdir(parents=True, exist_ok=True)
     output_md_path.parent.mkdir(parents=True, exist_ok=True)
 
-    output_config_path.write_text(json.dumps(base_config, indent=2), encoding="utf-8")
-    output_json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_json(output_config_path, base_config)
+    atomic_write_json(output_json_path, payload)
     write_markdown(output_md_path, payload)
     print(f"Wrote {output_config_path}")
     print(f"Wrote {output_json_path}")
